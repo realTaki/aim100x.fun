@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+fs_permissions = [{ access = "read", path = "./" }]
+# Official Monad Foundry profile (docs.monad.xyz/guides/deploy-smart-contract/foundry).
+# Live RPC eth_chainId = 0x279f = 10143. Hardcoded — not a Vercel/env override.
+network = "monad"
+eth-rpc-url = "https://testnet-rpc.monad.xyz"
+chain_id = 10143
+
+[rpc_endpoints]
+monad_testnet = "https://testnet-rpc.monad.xyz"
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
