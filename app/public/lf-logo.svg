@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <title>msgs fun</title>
+  <circle cx="64" cy="64" r="64" fill="#C026FF"/>
+  <g
+    fill="none"
+    stroke="#F4F4F5"
+    stroke-width="13.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    transform="translate(64 65) skewX(-7) translate(-64 -65)"
+  >
+    <path d="M37 87V35L50.5 58L64 35V87"/>
+    <path d="M76 87V35h28"/>
+    <path d="M76 58h20"/>
+  </g>
+</svg>

@@ -1,0 +1,369 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-bg: #0a0810;
+  --color-surface: #14111b;
+  --color-surface-2: #1c1826;
+  --color-surface-3: #2a2436;
+  --color-fg: #f7f4fb;
+  --color-muted: #9a93a8;
+  --color-subtle: #6f687c;
+  --color-accent: #c026ff;
+  --color-accent-dim: #6b21a8;
+  --color-accent-deep: #4a1a6e;
+  --color-bubble-me: #5c2482;
+  --color-bubble-them: #221c2c;
+  --color-chip: #2a2436;
+  --color-choice: #241e2c;
+  --color-close: #c4c0cc;
+  --color-fan: #3a3544;
+  --color-header: #120e18;
+  --color-border: #322b3e;
+  --color-avatar-ring: #f4f0f8;
+  --color-danger: #ef4444;
+  --font-sans: "Outfit", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.5;
+  --aspect-portrait: 2 / 3;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  font-family: var(--font-sans);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.lf-stage {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background:
+    radial-gradient(920px 480px at 50% -8%, rgb(192 38 255 / 0.2), transparent 58%),
+    radial-gradient(720px 360px at 50% 108%, rgb(88 28 135 / 0.22), transparent 52%),
+    var(--color-bg);
+}
+
+.lf-frame {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgb(192 38 255 / 0.05), transparent 18%),
+    var(--color-bg);
+}
+
+/* Phone: fill the screen aspect. Desktop (mouse or a large viewport): height-first 19.5:9. */
+@media (hover: hover) and (pointer: fine), (min-width: 700px) and (min-height: 500px) {
+  .lf-frame {
+    width: min(100%, calc(100dvh * var(--lf-strip-w, 9) / var(--lf-strip-h, 19.5)));
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      0 28px 90px rgb(0 0 0 / 0.55),
+      0 0 140px rgb(192 38 255 / 0.14);
+  }
+}
+
+.lf-logo-glow {
+  filter: drop-shadow(0 0 16px rgb(192 38 255 / 0.45));
+}
+
+@keyframes lf-draft-in {
+  from {
+    opacity: 0;
+    transform: translate(16px, 14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lf-draft-chip {
+  animation: lf-draft-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.lf-draft-chip:nth-child(2) {
+  animation-delay: 70ms;
+}
+
+@keyframes lf-voice-arc {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+
+.lf-voice-wave[data-playing="true"] .lf-voice-arc-1 {
+  animation: lf-voice-arc 1s ease-in-out infinite;
+}
+.lf-voice-wave[data-playing="true"] .lf-voice-arc-2 {
+  animation: lf-voice-arc 1s ease-in-out 0.18s infinite;
+}
+.lf-voice-wave[data-playing="true"] .lf-voice-arc-3 {
+  animation: lf-voice-arc 1s ease-in-out 0.36s infinite;
+}
+
+.lf-search {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
+  padding-right: 1rem;
+  padding-left: 2.25rem;
+  font-size: 0.875rem;
+  color: var(--color-fg);
+  outline: none;
+  transition:
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.lf-search::placeholder {
+  color: var(--color-subtle);
+}
+
+.lf-search:focus {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  box-shadow: 0 0 0 3px rgb(192 38 255 / 0.18);
+}
+
+.lf-icon-btn {
+  display: flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  color: var(--color-fg);
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.lf-icon-btn:hover {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--color-fg);
+}
+
+.lf-icon-btn:focus,
+.lf-icon-btn:focus-visible,
+.lf-icon-btn:active {
+  outline: none;
+  box-shadow: none;
+}
+
+.lf-bottom-glass-capsule {
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(20 17 27 / 0.42);
+  box-shadow:
+    0 10px 40px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+}
+
+.lf-bottom-glass-capsule a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lf-welcome-fallback {
+  background:
+    radial-gradient(120% 70% at 70% 18%, rgb(192 38 255 / 0.32), transparent 46%),
+    radial-gradient(90% 50% at 20% 88%, rgb(88 28 135 / 0.45), transparent 58%),
+    linear-gradient(180deg, #1a1028 0%, #0a0810 42%, #12081c 100%);
+}
+
+@keyframes lf-face-id-fail {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  16% {
+    transform: translateX(-11px);
+  }
+  32% {
+    transform: translateX(11px);
+  }
+  48% {
+    transform: translateX(-8px);
+  }
+  64% {
+    transform: translateX(8px);
+  }
+  80% {
+    transform: translateX(-4px);
+  }
+}
+
+.lf-face-id-fail {
+  animation: lf-face-id-fail 820ms ease-in-out both;
+}
+
+@keyframes lf-pin-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-14px);
+  }
+  40% {
+    transform: translateX(14px);
+  }
+  60% {
+    transform: translateX(-9px);
+  }
+  80% {
+    transform: translateX(9px);
+  }
+}
+
+.lf-pin-shake {
+  animation: lf-pin-shake 480ms ease-in-out both;
+}
+
+.lf-pin-pad {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+}
+
+.lf-pin-key {
+  display: flex;
+  width: 4.85rem;
+  height: 4.85rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.2);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.42),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.22);
+  -webkit-backdrop-filter: blur(18px) saturate(1.55);
+  backdrop-filter: blur(18px) saturate(1.55);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.lf-pin-key:active {
+  background: rgb(255 255 255 / 0.46);
+}
+
+.lf-pin-key-digit {
+  font-size: 2.05rem;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.lf-pin-key-letters {
+  margin-top: 0.18rem;
+  font-size: 0.62rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  color: rgb(255 255 255 / 0.92);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .lf-pin-key {
+    background: rgb(255 255 255 / 0.28);
+  }
+
+  .lf-bottom-glass-capsule {
+    background: color-mix(in srgb, var(--color-surface-2) 92%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

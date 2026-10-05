@@ -1,0 +1,26 @@
+{
+  "name": "lonelyfuns",
+  "private": true,
+  "type": "module",
+  "main": ".vercel/output/functions/__server.func/index.mjs",
+  "workspaces": [
+    "app"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w app",
+    "build": "npm install && npm run build -w app && npm run vercel:sync",
+    "vercel:sync": "rm -rf .vercel/output && mkdir -p .vercel && cp -a app/.vercel/output .vercel/output",
+    "build:dev": "npm run build:dev -w app",
+    "preview": "npm run preview -w app",
+    "preview:restart": "npm run preview:restart -w app",
+    "preview:stop": "npm run preview:stop -w app",
+    "typecheck": "npm run typecheck -w app",
+    "check:auth": "npm run check:auth -w app",
+    "test": "npm run test -w app",
+    "test:src": "npm run test:src -w app",
+    "lint": "npm run lint -w app",
+    "format": "npm run format -w app",
+    "contracts:build": "node app/scripts/forge.mjs build",
+    "contracts:test": "node app/scripts/forge.mjs test"
+  }
+}
