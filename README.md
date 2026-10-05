@@ -1,4 +1,4 @@
-# LonelyFuns
+# aim100x.fun
 
 AI-driven idol chat demo: discover virtual idols, become a fan, then text and voice chat. Chats persist per account.
 
@@ -62,8 +62,8 @@ Vercel Root Directory is **`app`**. Framework preset: TanStack Start. No on-chai
 
 ## MCP
 
-[`https://lonelyfuns.vercel.app/mcp`](https://lonelyfuns.vercel.app/mcp) is the Streamable HTTP
+[`https://aim100x.fun/mcp`](https://aim100x.fun/mcp) is the Streamable HTTP
 MCP. Codex, Claude, and Cursor connect with that URL and an `lf1.` bearer token.
-Codex: `codex mcp add lonelyfuns --url https://lonelyfuns.vercel.app/mcp --bearer-token-env-var LONELYFUNS_MCP_TOKEN`.
+Codex: `codex mcp add aim100x --url https://aim100x.fun/mcp --bearer-token-env-var LONELYFUNS_MCP_TOKEN`.
 The agent signs with its software P-256 key; the server verifies against the on-chain
 PasskeyAccount public key and stores nothing. Copy the Markdown from Manager → Agent account.

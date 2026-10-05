@@ -12,7 +12,7 @@ const ADDRESS = (
   process.env.IDOLS100X_ADDRESS || "0xeB88B15911431c4F3903F5780AB584E7CD6022cB"
 ).toLowerCase();
 const BASE_URI =
-  process.env.IDOLS100X_BASE_URI || "https://lonelyfuns.vercel.app/api/metadata/";
+  process.env.IDOLS100X_BASE_URI || "https://aim100x.fun/api/metadata/";
 
 function loadKey() {
   return readPaymasterSigner();

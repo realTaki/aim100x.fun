@@ -209,8 +209,8 @@ export function assertionFromGetResponse(cred: PublicKeyCredential): PasskeyAsse
 
 const WEBAUTHN_USER_NAME_MAX_BYTES = 64;
 
-/** Prefix stored on the authenticator so OS/Chrome passkey lists group LonelyFuns accounts. */
-export const PASSKEY_AUTHENTICATOR_NAME_PREFIX = "LonelyFuns - ";
+/** Prefix stored on the authenticator so OS/Chrome passkey lists group aim100x.fun accounts. */
+export const PASSKEY_AUTHENTICATOR_NAME_PREFIX = "aim100x.fun - ";
 
 function clipUtf8(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
@@ -268,7 +268,7 @@ export function passkeyCreateRequest(
   user: { id: BufferSource; name: string; displayName: string },
 ): PublicKeyCredentialCreationOptions {
   return {
-    rp: { name: "LonelyFuns", id: rpId },
+    rp: { name: "aim100x.fun", id: rpId },
     user,
     challenge,
     pubKeyCredParams: [{ type: "public-key", alg: -7 }],
@@ -304,7 +304,7 @@ export function isLonelyfunsWebauthnOrigin(origin: string): boolean {
     return (
       host === "localhost" ||
       host === "127.0.0.1" ||
-      host === "lonelyfuns.vercel.app" ||
+      host === "aim100x.fun" ||
       host === "lonelyfuns.grok.me" ||
       host.endsWith(".lonelyfuns.grok.me")
     );

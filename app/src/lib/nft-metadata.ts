@@ -77,7 +77,7 @@ export function buildErc721TokenMetadata(idol: Idol): Erc721TokenMetadata {
   const description =
     idolBio(idol) ||
     idolPersonality(idol) ||
-    `${name} on LonelyFuns.`;
+    `${name} on aim100x.fun.`;
   const attributes: Erc721Attribute[] = [
     { trait_type: "Token ID", value: idol.tokenId },
     { trait_type: "Public", value: idol.isPublic ? "true" : "false" },

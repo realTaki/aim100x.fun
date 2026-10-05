@@ -12,7 +12,7 @@ import {
 } from "@/lib/idols100x";
 
 /** Product Streamable HTTP endpoint (Vercel production on `main`). */
-export const REMOTE_MCP_URL = "https://lonelyfuns.vercel.app/mcp";
+export const REMOTE_MCP_URL = "https://aim100x.fun/mcp";
 
 /** Same WebAuthn origin/rpId the software Agent Account already uses. */
 export const AGENT_WEBAUTHN_ORIGIN = "https://agent.lonelyfuns.local";
