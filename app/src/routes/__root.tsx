@@ -12,7 +12,7 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { HUB_STRIP_STYLE } from "@/lib/hub-viewport";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "LonelyFuns";
+const APP_NAME = "aim100x.fun";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -26,7 +26,7 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#0a0810" },
       {
         name: "description",
-        content: "LonelyFuns — chat with AI virtual idols. Text and voice.",
+        content: "aim100x.fun — chat with AI virtual idols. Text and voice.",
       },
     ],
     links: [

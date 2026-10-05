@@ -1,26 +1,26 @@
 /** Agent-facing product Markdown served at GET /docs. Not consumer UI. */
 
-export const PRODUCT_DOCS = `# LonelyFuns
+export const PRODUCT_DOCS = `# aim100x.fun
 
 Audience: other agents (Codex, Claude, Cursor). Humans use the app; this page is how you understand it.
 
-Live product: https://lonelyfuns.vercel.app
+Live product: https://aim100x.fun
 
 In-app chrome is often Chinese. Use the English names below; the Chinese in parentheses is the label you will see in the UI or on-chain.
 
 ## What it is
 
-LonelyFuns is a phone-shaped app of **AI idols**. Each idol is a persistent persona with a public profile, paid 1:1 chat (text, voice notes, photos), and a broker who owns it.
+aim100x.fun is a phone-shaped app of **AI idols**. Each idol is a persistent persona with a public profile, paid 1:1 chat (text, voice notes, photos), and a broker who owns it.
 
 - Fans discover idols, subscribe with **LUSD**, then open **DM** (私信, the 1:1 chat).
 - **Brokers** (经纪人) own the idol **ERC-721 NFT**, edit persona and scenes, take subscribe/unlock revenue, and may sell the NFT.
-- Other agents manage a broker's idols through MCP at https://lonelyfuns.vercel.app/mcp (signed \`lf1.\` bearer). The server verifies the signature and stores nothing.
+- Other agents manage a broker's idols through MCP at https://aim100x.fun/mcp (signed \`lf1.\` bearer). The server verifies the signature and stores nothing.
 
 NSFW photos are paywalled. Chat, subscribe, and unlock run on **Monad testnet**.
 
 ## On-chain concepts (labels, not a setup guide)
 
-Name these standards when matching LonelyFuns to other crypto products. There is no contract-address list here.
+Name these standards when matching aim100x.fun to other crypto products. There is no contract-address list here.
 
 | Label | In this product |
 | --- | --- |
@@ -37,7 +37,7 @@ Name these standards when matching LonelyFuns to other crypto products. There is
 
 App tabs: **Plaza** (广场) \`/\` · **Subscribed** (已订阅) \`/subscribed\` · **Creator Center** (创作者中心) \`/me/manager\` · **Profile** (个人主页) \`/me\`.
 
-1. Open https://lonelyfuns.vercel.app → **Login** (\`/login\`) with a Passkey. First time: **+** create (a display name), then Face ID / device prompt. Same Passkey restores the same smart account.
+1. Open https://aim100x.fun → **Login** (\`/login\`) with a Passkey. First time: **+** create (a display name), then Face ID / device prompt. Same Passkey restores the same smart account.
 2. **Profile**: set **Prefer language**, username, bio, avatar. Claim **+100 LUSD** from the faucet (24h cooldown) or show the deposit QR (Monad Testnet — LUSD only).
 3. **Plaza**: public idols (\`isPublic\`). Search, sort by subscribers or lifetime receipts (累计收账). Open a card → profile \`/idol/{tokenId}\`.
 4. **Subscribe** (订阅; default **1 LUSD**, broker can change). Pays the idol TBA; you become a fan. DM stays locked until subscribed.
@@ -110,7 +110,7 @@ Creator-typed language is kept until Prefer language rewrites at init. Default f
 
 ## Agent MCP
 
-**URL:** https://lonelyfuns.vercel.app/mcp  
+**URL:** https://aim100x.fun/mcp
 **Auth:** \`Authorization: Bearer lf1.…\`  
 **Store:** none. Verify signature, bind the Agent Account, run the tool, discard the key.
 
@@ -122,7 +122,7 @@ Codex:
 
 \`\`\`bash
 export LONELYFUNS_MCP_TOKEN='lf1....'
-codex mcp add lonelyfuns --url https://lonelyfuns.vercel.app/mcp --bearer-token-env-var LONELYFUNS_MCP_TOKEN
+codex mcp add aim100x --url https://aim100x.fun/mcp --bearer-token-env-var LONELYFUNS_MCP_TOKEN
 \`\`\`
 
 Cursor / Claude: Streamable HTTP MCP, same URL, header \`Authorization: Bearer lf1.…\`.
@@ -201,7 +201,7 @@ export function handleProductDocsRequest(request: Request): Response {
     const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LonelyFuns docs</title>
+<title>aim100x.fun docs</title>
 <pre style="white-space:pre-wrap;font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:1.5rem;max-width:52rem">${escapeHtml(PRODUCT_DOCS)}</pre>
 `;
     return new Response(method === "HEAD" ? null : html, {

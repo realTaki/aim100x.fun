@@ -8,7 +8,7 @@ export function LfLogo({ className }: { className?: string }) {
         "inline-flex items-center gap-0 font-extrabold leading-none tracking-tight select-none",
         className,
       )}
-      aria-label="msgs fun"
+      aria-label="aim100x.fun"
     >
       <span className="text-[1.35em] text-fg">msgs</span>
       <span

@@ -141,7 +141,7 @@ function dummyWebAuthnSignature(): Hex {
       authenticatorData: ("0x" + "00".repeat(32) + "05" + "00000001") as Hex,
       // Size matches a real webauthn.get clientDataJSON (challenge + origin).
       clientDataJSON:
-        '{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://lonelyfuns.vercel.app","crossOrigin":false}',
+        '{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://aim100x.fun","crossOrigin":false}',
       challengeIndex: 29n,
       typeIndex: 1n,
       r: 1n,

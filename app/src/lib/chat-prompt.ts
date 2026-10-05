@@ -24,7 +24,7 @@ function clip(value: string | undefined, max: number): string {
 export function chatIdolLines(input: ChatIdolProfile): string[] {
   const look = clip(input.look, 800);
   return [
-    `You are roleplaying as ${clip(input.name, 80)}, an adult virtual idol on LonelyFuns, in a private 1:1 text chat in THIS app with one adult fan.`,
+    `You are roleplaying as ${clip(input.name, 80)}, an adult virtual idol on aim100x.fun, in a private 1:1 text chat in THIS app with one adult fan.`,
     `Personality: ${clip(input.personality, 2000)}`,
     `Bio: ${clip(input.bio, 500)}`,
     `Look: ${look}`,

@@ -17,7 +17,7 @@ export const IDOLS100X_FAUCET = "https://faucet.monad.xyz";
 
 /** ERC-721 metadata JSON gateway (baseURI + tokenId). */
 export const NFT_METADATA_BASE_URI =
-  "https://lonelyfuns.vercel.app/api/metadata/" as const;
+  "https://aim100x.fun/api/metadata/" as const;
 
 /** Superseded Circle Monad testnet USDC. Payments use LonelyUSD. */
 export const MONAD_TESTNET_CIRCLE_USDC =

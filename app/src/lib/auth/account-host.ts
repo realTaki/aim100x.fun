@@ -1,7 +1,7 @@
-export const ACCOUNT_EMAIL_DOMAIN = "account.lonelyfuns.invalid";
+export const ACCOUNT_EMAIL_DOMAIN = "account.aim100x.fun.invalid";
 
-/** LonelyFuns production alias on Vercel. */
-export const LONELYFUNS_VERCEL_ORIGIN = "https://lonelyfuns.vercel.app";
+/** aim100x.fun production origin. */
+export const LONELYFUNS_VERCEL_ORIGIN = "https://aim100x.fun";
 
 export function normalizeHost(value: string): string {
   const withoutScheme = value.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");

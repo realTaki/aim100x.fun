@@ -139,9 +139,9 @@ export async function agentConfigMarkdown(config: LocalAgentConfig): Promise<str
     },
     true,
   );
-  return `# LonelyFuns Agent
+  return `# aim100x.fun Agent
 
-> This text contains a signed MCP bearer token and the agent private key. Share it only with an agent you trust. LonelyFuns verifies the signature against the on-chain PasskeyAccount public key and does not store the key, a session, or any user record. Revoke or reset the agent to invalidate it.
+> This text contains a signed MCP bearer token and the agent private key. Share it only with an agent you trust. aim100x.fun verifies the signature against the on-chain PasskeyAccount public key and does not store the key, a session, or any user record. Revoke or reset the agent to invalidate it.
 
 - Chain: Monad Testnet (10143)
 - Idols100x: \`${IDOLS100X_ADDRESS}\`
@@ -155,13 +155,13 @@ The token stays in your shell. Do not paste it into Vercel env vars.
 
 \`\`\`bash
 export LONELYFUNS_MCP_TOKEN='${token}'
-codex mcp add lonelyfuns --url ${REMOTE_MCP_URL} --bearer-token-env-var LONELYFUNS_MCP_TOKEN
+codex mcp add aim100x --url ${REMOTE_MCP_URL} --bearer-token-env-var LONELYFUNS_MCP_TOKEN
 \`\`\`
 
 Codex sends \`Authorization: Bearer $LONELYFUNS_MCP_TOKEN\` on every request. Optional \`~/.codex/config.toml\`:
 
 \`\`\`toml
-[mcp_servers.lonelyfuns]
+[mcp_servers.aim100x]
 url = "${REMOTE_MCP_URL}"
 bearer_token_env_var = "LONELYFUNS_MCP_TOKEN"
 tool_timeout_sec = 60
@@ -173,7 +173,7 @@ tool_timeout_sec = 60
 ${JSON.stringify(
   {
     mcpServers: {
-      lonelyfuns: {
+      aim100x: {
         url: REMOTE_MCP_URL,
         headers: {
           Authorization: `Bearer ${token}`,

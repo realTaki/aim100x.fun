@@ -184,7 +184,7 @@ export function AgentAccountScreen() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-muted">
-            The key stays in this browser. Copied Markdown tells Codex/Cursor to connect to lonelyfuns.vercel.app/mcp with a signed bearer token — LonelyFuns verifies it on-chain and stores nothing. Clearing site data makes the key unrecoverable; reset the agent to replace it. Full access includes pricing, so share it only with an agent you trust.
+            The key stays in this browser. Copied Markdown tells Codex/Cursor to connect to aim100x.fun/mcp with a signed bearer token — aim100x.fun verifies it on-chain and stores nothing. Clearing site data makes the key unrecoverable; reset the agent to replace it. Full access includes pricing, so share it only with an agent you trust.
           </p>
         </div>
     </AppPageShell>
