@@ -1,6 +1,3 @@
-[submodule "contracts/lib/forge-std"]
-	path = contracts/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
 [submodule "reference/msgs.fun"]
 	path = reference/msgs.fun
 	url = https://github.com/realTaki/msgs.fun.git
