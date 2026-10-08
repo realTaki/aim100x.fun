@@ -47,7 +47,7 @@ export function WalletSignIn({ callbackURL = "/" }: { callbackURL?: string }) {
           onClick={() => void login(wallet)}
           className="mb-2 h-12 w-full rounded-2xl bg-accent text-fg disabled:opacity-50"
         >
-          {busy ? "Signing in and preparing your API wallet…" : wallet.info.name}
+          {busy ? "Signing in…" : wallet.info.name}
         </button>
       ))}
       {!wallets.length && (
@@ -55,10 +55,6 @@ export function WalletSignIn({ callbackURL = "/" }: { callbackURL?: string }) {
           Open in a wallet browser or install a wallet extension.
         </p>
       )}
-      <p className="mt-2 text-xs text-muted">
-        The app manages your API wallet. Deposit USDC for automatic API payments, up to 0.10 USDC
-        per request.
-      </p>
       {error && (
         <p role="alert" className="mt-3 text-sm text-danger">
           {error}
