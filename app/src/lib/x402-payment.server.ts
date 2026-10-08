@@ -7,7 +7,7 @@ import { createPublicClient, erc20Abi, http, type Address } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { MONAD_USDC, mainnetWalletChain } from "./auth/app-wallet-chain.ts";
 
-export const MAX_API_PAYMENT = 100_000n; // 0.10 USDC per call, disclosed at login.
+export const MAX_API_PAYMENT = 100_000n; // 0.10 USDC per call, disclosed in the API wallet deposit section.
 export const MONID_RUN_URL = "https://x402.monid.ai/v1/run";
 export const ELEVENLABS_STT_URL = "https://x402.orthogonal.com/elevenlabs/v1/speech-to-text";
 const sellers: Record<string, Address> = {

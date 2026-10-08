@@ -85,8 +85,8 @@ export function ApiWalletBalance({ account }: { account: `0x${string}` }) {
         {copied ? " · Copied" : " · Copy"}
       </button>
       <p className="mt-2 text-xs text-muted">
-        Deposit Monad mainnet USDC. API payments are automatic, up to 0.10 USDC per request. LUSD
-        below is for testnet interactions.
+        The app manages this API wallet. Deposit Monad mainnet USDC for automatic API payments,
+        up to 0.10 USDC per request. LUSD below is for testnet interactions.
       </p>
       <div className="mt-3 flex gap-2">
         <input
