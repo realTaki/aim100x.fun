@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Link, Navigate } from "@tanstack/react-router";
 import { ChevronLeft, History, Keyboard, Mic, SendHorizontal } from "lucide-react";
-import { idolName, idolVoiceId } from "@/lib/idol-fields";
+import { idolName } from "@/lib/idol-fields";
 import type { Idol } from "@/lib/idols";
 import { IdolAvatarRing } from "@/components/idol-avatar-ring";
 import { GatedIdolImage } from "@/components/gated-idol-image";
+import { ChatImagePaywall } from "@/components/chat-image-paywall";
 import { IdolGatedPhoto } from "@/components/idol-gated-photo";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { transcribeAudio } from "@/lib/ai";
@@ -12,7 +19,6 @@ import { withSendErrorBubble } from "@/lib/chat-fallback";
 import {
   attachChatImageForUser,
   attachChatVoiceForUser,
-  generateNewPhotosForUser,
   getThreadForUser,
   persistChatThread,
   refreshThreadChoices,
@@ -227,74 +233,73 @@ export function ChatScreen({ creator }: { creator: Idol }) {
         publishLiveThread(sessionKey, merged);
         return merged;
       });
-      if (result.generatePhotos && !result.fallback) {
-        void generateNewPhotosForUser(user, creatorRef.current, result.thread, {
-          prompt: result.photoPrompt,
-          tags: result.photoTags,
-        }).catch(() => undefined);
-      }
       if (result.wantVoice && !result.fallback) {
         const pendingId = `voice-pending-${Date.now()}`;
-        const spoken = (result.voiceText || result.reply).trim();
+        const spoken = (result.voiceText || "").trim();
         const chapterNow = result.assistantMessage.chapter;
         if (spoken) {
           setThread((prev) => {
-          if (!prev) return prev;
-          const withPending = {
-            ...prev,
-            messages: [
-              ...prev.messages,
-              {
-                id: pendingId,
-                role: "assistant" as const,
-                content: "",
-                chapter: chapterNow,
-                voicePending: true,
-              },
-            ],
-          };
-          publishLiveThread(sessionKey, withPending);
-          return withPending;
-        });
-        void attachChatVoiceForUser(user, result.thread, {
-          spoken,
-          chapter: chapterNow,
-          voiceId: idolVoiceId(creatorRef.current),
-          tokenId: creatorRef.current.tokenId,
-        })
-          .then((voice) => {
-            setThread((prev) => {
-              if (!prev) return prev;
-              const without = prev.messages.filter((m) => m.id !== pendingId);
-              if (!voice.ok || !voice.voiceMessage) {
-                const cleared = { ...prev, messages: without };
-                publishLiveThread(sessionKey, cleared);
-                return cleared;
-              }
-              if (without.some((m) => m.id === voice.voiceMessage!.id || m.audioUrl === voice.voiceMessage!.audioUrl)) {
-                const next = { ...prev, messages: without };
+            if (!prev) return prev;
+            const withPending = {
+              ...prev,
+              messages: [
+                ...prev.messages,
+                {
+                  id: pendingId,
+                  role: "assistant" as const,
+                  content: "",
+                  chapter: chapterNow,
+                  voicePending: true,
+                },
+              ],
+            };
+            publishLiveThread(sessionKey, withPending);
+            return withPending;
+          });
+          void attachChatVoiceForUser(user, result.thread, {
+            spoken,
+            chapter: chapterNow,
+            tokenId: creatorRef.current.tokenId,
+          })
+            .then((voice) => {
+              setThread((prev) => {
+                if (!prev) return prev;
+                const without = prev.messages.filter((m) => m.id !== pendingId);
+                if (!voice.ok || !voice.voiceMessage) {
+                  const cleared = { ...prev, messages: without };
+                  publishLiveThread(sessionKey, cleared);
+                  return cleared;
+                }
+                if (
+                  without.some(
+                    (m) =>
+                      m.id === voice.voiceMessage!.id ||
+                      m.audioUrl === voice.voiceMessage!.audioUrl,
+                  )
+                ) {
+                  const next = { ...prev, messages: without };
+                  publishLiveThread(sessionKey, next);
+                  return next;
+                }
+                const next = {
+                  ...prev,
+                  messages: [...without, voice.voiceMessage],
+                };
                 publishLiveThread(sessionKey, next);
                 return next;
-              }
-              const next = {
-                ...prev,
-                messages: [...without, voice.voiceMessage],
-              };
-              publishLiveThread(sessionKey, next);
-              return next;
+              });
+            })
+            .catch(() => {
+              setThread((prev) => {
+                if (!prev) return prev;
+                const cleared = {
+                  ...prev,
+                  messages: prev.messages.filter((m) => m.id !== pendingId),
+                };
+                publishLiveThread(sessionKey, cleared);
+                return cleared;
+              });
             });
-          })
-          .catch(() => {
-            setThread((prev) => {
-              if (!prev) return prev;
-              const cleared = {
-                ...prev,
-                messages: prev.messages.filter((m) => m.id !== pendingId),
-              };
-              publishLiveThread(sessionKey, cleared);
-              return cleared;
-            });
-          });
         }
       }
       if (result.wantImage && !result.fallback) {
@@ -312,11 +317,18 @@ export function ChatScreen({ creator }: { creator: Idol }) {
         })
           .then(async (img) => {
             const photo = img.ok ? img.imageMessage : undefined;
-            if (!photo?.imageUrl) return;
-            await preloadImage(photo.imageUrl);
+            if (!photo || (!photo.imageUrl && !photo.imageId)) return;
+            if (photo.imageUrl) await preloadImage(photo.imageUrl);
             setThread((prev) => {
               if (!prev) return prev;
-              if (prev.messages.some((m) => m.id === photo.id || m.imageUrl === photo.imageUrl)) {
+              if (
+                prev.messages.some(
+                  (m) =>
+                    m.id === photo.id ||
+                    (photo.imageId && m.imageId === photo.imageId) ||
+                    (photo.imageUrl && m.imageUrl === photo.imageUrl),
+                )
+              ) {
                 return prev;
               }
               const next = {
@@ -355,9 +367,7 @@ export function ChatScreen({ creator }: { creator: Idol }) {
         return;
       }
       const mime = pickRecorderMime();
-      const rec = mime
-        ? new MediaRecorder(stream, { mimeType: mime })
-        : new MediaRecorder(stream);
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -439,9 +449,7 @@ export function ChatScreen({ creator }: { creator: Idol }) {
   }
 
   if (blocked === "auth") {
-    return (
-      <Navigate to="/login" search={{ next: `/chat/${tokenId}` }} />
-    );
+    return <Navigate to="/login" search={{ next: `/chat/${tokenId}` }} />;
   }
   if (blocked === "fan") {
     return (
@@ -521,6 +529,21 @@ export function ChatScreen({ creator }: { creator: Idol }) {
             msg={m}
             gate={gate}
             onOpenImage={setLightbox}
+            onImageUnlocked={(msgId, imageUrl) => {
+              if (!user) return;
+              setThread((prev) => {
+                if (!prev) return prev;
+                const next = {
+                  ...prev,
+                  messages: prev.messages.map((row) =>
+                    row.id === msgId ? { ...row, imageUrl, imageNsfwUnlocked: true } : row,
+                  ),
+                };
+                publishLiveThread(sessionKey, next);
+                void persistChatThread(user, creator.tokenId, next);
+                return next;
+              });
+            }}
             onNsfwUnlocked={(msgId) => {
               if (!user) return;
               setThread((prev) => {
@@ -561,9 +584,7 @@ export function ChatScreen({ creator }: { creator: Idol }) {
             ))}
           </div>
         ) : null}
-        {status ? (
-          <p className="text-center text-sm text-muted">{status}</p>
-        ) : null}
+        {status ? <p className="text-center text-sm text-muted">{status}</p> : null}
         <div ref={bottomRef} />
       </div>
 
@@ -654,11 +675,13 @@ export function ChatBubble({
   gate,
   onOpenImage,
   onNsfwUnlocked,
+  onImageUnlocked,
 }: {
   msg: ChatMsg;
   gate?: IdolMediaGate;
   onOpenImage?: (src: string) => void;
   onNsfwUnlocked?: (messageId: string) => void;
+  onImageUnlocked?: (messageId: string, imageUrl: string) => void;
 }) {
   if (isChatError(msg)) {
     return (
@@ -689,14 +712,17 @@ export function ChatBubble({
     msg.role === "assistant" &&
     !content.trim() &&
     !msg.imageUrl &&
+    !msg.imageId &&
     !msg.audioUrl &&
     !msg.voicePending
   ) {
     return null;
   }
-  const imageOnly = Boolean(msg.imageUrl) && !content;
+  const imageOnly = Boolean(msg.imageUrl || msg.imageId) && !content;
   if ((msg.audioUrl || msg.voicePending) && !content && !msg.imageUrl) {
-    return <VoiceNoteBubble url={msg.audioUrl} pending={Boolean(msg.voicePending) && !msg.audioUrl} />;
+    return (
+      <VoiceNoteBubble url={msg.audioUrl} pending={Boolean(msg.voicePending) && !msg.audioUrl} />
+    );
   }
   return (
     <div
@@ -711,6 +737,9 @@ export function ChatBubble({
       )}
     >
       {content ? <p>{content}</p> : null}
+      {msg.imageId && !msg.imageUrl ? (
+        <ChatImagePaywall message={msg} onUnlocked={onImageUnlocked} />
+      ) : null}
       {msg.imageUrl ? (
         <ChatImage
           src={msg.imageUrl}
@@ -761,7 +790,7 @@ function VoiceNoteBubble({ url, pending }: { url?: string; pending: boolean }) {
         onClick={() => {
           if (url) void playAudioUrl(url);
         }}
-        aria-label={pending ? "语音生成中" : playing ? "停止播放" : "播放语音"}
+        aria-label={pending ? "Generating voice" : playing ? "Stop playback" : "Play voice"}
         className={cn(
           "flex h-10 items-center rounded-2xl rounded-bl-md bg-bubble-them pl-3 ring-1 ring-border/40",
           pending && "cursor-wait",
@@ -838,6 +867,13 @@ function ChatImage({
   onOpen?: (src: string) => void;
   onNsfwUnlocked?: (messageId: string) => void;
 }) {
+  if (contentRating === "NSFW" && src.startsWith("/api/media/") && !/[?&]access=/.test(src)) {
+    return (
+      <div className="flex h-44 w-48 items-center justify-center rounded-xl border border-border bg-surface-2 p-4 text-center text-sm text-muted">
+        This older photo is unavailable. Request a new photo to unlock it.
+      </div>
+    );
+  }
   const locked = gate ? gate.isLocked(src, contentRating, messageUnlocked) : false;
   if (gate) {
     return (
@@ -845,9 +881,7 @@ function ChatImage({
         <IdolGatedPhoto
           src={src}
           locked={locked}
-          onActivate={() =>
-            gate.unlockImage(src).then(() => onNsfwUnlocked?.(messageId))
-          }
+          onActivate={() => gate.unlockImage(src).then(() => onNsfwUnlocked?.(messageId))}
           onOpen={() => onOpen?.(src)}
           imgClassName="max-h-56 w-full"
           className="max-h-56 w-full"

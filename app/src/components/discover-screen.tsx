@@ -4,70 +4,62 @@ import { idolSearchText } from "@/lib/idol-fields";
 import { type PlazaSort, sortPlazaIdols } from "@/lib/idol-amateur";
 import { type Idol } from "@/lib/idols";
 import { EmptyPlazaDiscover, EmptyState } from "@/components/empty-state";
-import { IdolPlazaCard } from "@/components/idol-plaza-card";
-import { LfLogo } from "@/components/lf-logo";
-import { BOTTOM_GLASS_TAB_BAR_MAIN_PB } from "@/components/bottom-glass-tab-bar";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { resolveConnectedWallet } from "@/lib/subscribe/connected-wallet";
-import { isFanOfTokenId } from "@/lib/subscribe/fan-status-client";
-import { writeFanCache } from "@/lib/fan-cache";
+import { FanIdolCard } from "@/components/fan-idol-card";
+import { HubHeader } from "@/components/hub-header";
 import { cn } from "@/lib/utils";
+import { useIdolStats } from "@/lib/use-idol-stats";
 
 export function DiscoverScreen({ idols }: { idols: Idol[] }) {
+  const liveIdols = useIdolStats(idols);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<PlazaSort>("subscribers");
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matched = q ? idols.filter((c) => idolSearchText(c).includes(q)) : idols;
+    const matched = q ? liveIdols.filter((c) => idolSearchText(c).includes(q)) : liveIdols;
     return sortPlazaIdols(matched, sort);
-  }, [query, idols, sort]);
+  }, [query, liveIdols, sort]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 bg-bg pb-3">
-        <div className="flex items-center gap-2">
-          <LfLogo className="shrink-0 text-[0.72rem] sm:text-sm" />
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">Search idol</span>
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="search idol"
-              className="lf-search"
-            />
-          </label>
-          <div className="flex shrink-0 gap-1">
-            <button
-              type="button"
-              aria-pressed={sort === "subscribers"}
-              aria-label="sort by subscribers"
-              onClick={() => setSort("subscribers")}
-              className={cn("lf-icon-btn", sort === "subscribers" && "bg-white/8 text-accent")}
-            >
-              <PlazaSortMark>
-                <Users className="size-4" strokeWidth={1.75} />
-              </PlazaSortMark>
-            </button>
-            <button
-              type="button"
-              aria-pressed={sort === "receipts"}
-              aria-label="sort by receipts"
-              onClick={() => setSort("receipts")}
-              className={cn("lf-icon-btn", sort === "receipts" && "bg-white/8 text-accent")}
-            >
-              <PlazaSortMark>
-                <CircleDollarSign className="size-4" strokeWidth={1.75} />
-              </PlazaSortMark>
-            </button>
-          </div>
+      <HubHeader>
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">Search idol</span>
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="search idol"
+            className="lf-search"
+          />
+        </label>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            aria-pressed={sort === "subscribers"}
+            aria-label="sort by subscribers"
+            onClick={() => setSort("subscribers")}
+            className={cn("lf-icon-btn", sort === "subscribers" && "bg-white/8 text-accent")}
+          >
+            <PlazaSortMark>
+              <Users className="size-4" strokeWidth={1.75} />
+            </PlazaSortMark>
+          </button>
+          <button
+            type="button"
+            aria-pressed={sort === "receipts"}
+            aria-label="sort by receipts"
+            onClick={() => setSort("receipts")}
+            className={cn("lf-icon-btn", sort === "receipts" && "bg-white/8 text-accent")}
+          >
+            <PlazaSortMark>
+              <CircleDollarSign className="size-4" strokeWidth={1.75} />
+            </PlazaSortMark>
+          </button>
         </div>
-      </div>
+      </HubHeader>
 
-      <section
-        className={`flex min-h-0 flex-1 flex-col gap-2.5 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y ${BOTTOM_GLASS_TAB_BAR_MAIN_PB}`}
-      >
+      <section className="lf-hub-scroll flex flex-col gap-2.5">
         {idols.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-8 py-20">
             <EmptyPlazaDiscover />
@@ -76,7 +68,7 @@ export function DiscoverScreen({ idols }: { idols: Idol[] }) {
           <EmptyState icon={<Search className="size-6 text-muted" />} title="No results" />
         ) : (
           list.map((creator, i) => (
-            <DiscoverIdolCard key={creator.tokenId} creator={creator} priority={i === 0} />
+            <FanIdolCard key={creator.tokenId} creator={creator} priority={i === 0} />
           ))
         )}
       </section>
@@ -110,27 +102,5 @@ function PlazaSortMark({ children }: { children: ReactNode }) {
         />
       </svg>
     </span>
-  );
-}
-
-function DiscoverIdolCard({ creator, priority }: { creator: Idol; priority: boolean }) {
-  const { user } = useCurrentUserState();
-  return (
-    <div
-      onPointerDown={() => {
-        if (!user) return;
-        void resolveConnectedWallet(user)
-          .then((wallet) =>
-            wallet
-              ? isFanOfTokenId(creator.tokenId, wallet).then((isFan) =>
-                  writeFanCache(wallet, creator.tokenId, isFan),
-                )
-              : undefined,
-          )
-          .catch(() => {});
-      }}
-    >
-      <IdolPlazaCard creator={creator} priority={priority} />
-    </div>
   );
 }

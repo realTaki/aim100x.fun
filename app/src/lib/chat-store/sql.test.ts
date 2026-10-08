@@ -49,6 +49,37 @@ function sampleThread(extraMessages: ChatThread["messages"] = []): ChatThread {
 }
 
 describe("chat-store sql empty history", () => {
+  it("persists a locked ID-only photo and replaces it with the paid URL without losing its authorization", () => {
+    const db = applySchema(memorySql());
+    const thread = sampleThread([
+      {
+        id: "locked-photo",
+        role: "assistant",
+        content: "",
+        chapter: 0,
+        imageId: "photo-id",
+        imagePaymentIntent: "signed-quote",
+        imagePaymentAmount: "1000000",
+        imageContentRating: "NSFW",
+      },
+    ]);
+    setThreadFull(db, "alice", "1", thread);
+    const locked = getThreadFromDb(db, "alice", "1")!;
+    const photo = locked.messages.find((m) => m.id === "locked-photo")!;
+    assert.equal(photo.imageUrl, undefined);
+    assert.equal(photo.imageId, "photo-id");
+    assert.equal(photo.imagePaymentIntent, "signed-quote");
+    assert.equal(photo.imagePaymentAmount, "1000000");
+    assert.ok(locked.usedImageIds.includes("photo-id"));
+    photo.imageUrl = "/api/media/photo-id?access=paid-grant";
+    photo.imageNsfwUnlocked = true;
+    setThreadFull(db, "alice", "1", locked);
+    const restored = getThreadFromDb(db, "alice", "1")!.messages.find(
+      (m) => m.id === "locked-photo",
+    )!;
+    assert.equal(restored.imageUrl, photo.imageUrl);
+    assert.equal(restored.imageNsfwUnlocked, true);
+  });
   it("returns null for an empty database instead of throwing", () => {
     const db = applySchema(memorySql());
     assert.equal(getThreadFromDb(db, "0xabc", "1"), null);
@@ -106,15 +137,20 @@ describe("chat-store sql empty history", () => {
 
   it("keeps archived photos after the transcript is replaced", () => {
     const db = applySchema(memorySql());
-    setThreadFull(db, "0xabc", "1", sampleThread([
-      {
-        id: "pic-1",
-        role: "assistant",
-        content: "",
-        chapter: 0,
-        imageUrl: "/api/media/keep-me",
-      },
-    ]));
+    setThreadFull(
+      db,
+      "0xabc",
+      "1",
+      sampleThread([
+        {
+          id: "pic-1",
+          role: "assistant",
+          content: "",
+          chapter: 0,
+          imageUrl: "/api/media/keep-me",
+        },
+      ]),
+    );
     const seeded = getThreadFromDb(db, "0xabc", "1");
     assert.ok(seeded);
     setThreadFull(db, "0xabc", "1", {
@@ -123,7 +159,10 @@ describe("chat-store sql empty history", () => {
       photoUrls: seeded.photoUrls,
     });
     const loaded = getThreadFromDb(db, "0xabc", "1");
-    assert.equal(loaded?.messages.some((m) => m.imageUrl === "/api/media/keep-me"), false);
+    assert.equal(
+      loaded?.messages.some((m) => m.imageUrl === "/api/media/keep-me"),
+      false,
+    );
     assert.deepEqual(loaded?.photoUrls, ["/api/media/keep-me"]);
     assert.ok(loaded?.usedImageIds.includes("keep-me"));
   });
@@ -165,7 +204,10 @@ describe("chat-store sql empty history", () => {
     );
     const loaded = getThreadFromDb(db, "0xabc", "1");
     assert.equal(loaded?.generation, 1);
-    assert.equal(loaded?.messages.some((m) => m.content === "想你了"), false);
+    assert.equal(
+      loaded?.messages.some((m) => m.content === "想你了"),
+      false,
+    );
     assert.deepEqual(loaded?.photoUrls, ["/api/media/keep-me"]);
   });
 
@@ -229,5 +271,29 @@ describe("chat-store sql empty history", () => {
     assert.equal(isStaleThreadGeneration("0xabc", "1", 1), false);
     assert.equal(isStaleThreadGeneration("0xabc", "2", 0), false);
     resetThreadGenerationForTests();
+  });
+});
+
+it("preserves photo checkout identity and quote when an unpaid thread is reloaded", () => {
+  const db = applySchema(memorySql());
+  const msg = {
+    id: "paywall",
+    role: "assistant" as const,
+    content: "",
+    chapter: 0,
+    imageId: "photo-id",
+    imagePaymentIntent: "signed-quote",
+    imagePaymentAmount: "1000000",
+    imageContentRating: "NSFW" as const,
+  };
+  setThreadFull(db, "0xabc", "1", sampleThread([msg]));
+  assert.deepEqual(getThreadFromDb(db, "0xabc", "1")?.messages.at(-1), {
+    ...msg,
+    imageUrl: undefined,
+    imagePending: undefined,
+    voicePending: undefined,
+    audioUrl: undefined,
+    imageNsfwUnlocked: undefined,
+    error: undefined,
   });
 });

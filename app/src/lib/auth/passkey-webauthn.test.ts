@@ -59,14 +59,14 @@ describe("passkey webauthn helpers", () => {
 describe("passkeyUserFromName", () => {
   it("prefixes the authenticator name, not the typed in-app username", () => {
     assert.deepEqual(passkeyUserFromName("  Taki  "), {
-      name: "LonelyFuns - Taki",
-      displayName: "LonelyFuns - Taki",
+      name: "aim100x.fun - Taki",
+      displayName: "aim100x.fun - Taki",
     });
     assert.deepEqual(passkeyUserFromName("fan two"), {
-      name: "LonelyFuns - fan two",
-      displayName: "LonelyFuns - fan two",
+      name: "aim100x.fun - fan two",
+      displayName: "aim100x.fun - fan two",
     });
-    assert.equal(PASSKEY_AUTHENTICATOR_NAME_PREFIX, "LonelyFuns - ");
+    assert.equal(PASSKEY_AUTHENTICATOR_NAME_PREFIX, "aim100x.fun - ");
   });
 
   it("rejects a blank name", () => {
@@ -86,7 +86,10 @@ describe("passkeyUserFromName", () => {
 
 describe("webauthn origin", () => {
   it("strips default https port that reverse proxies add", () => {
-    assert.equal(canonicalWebauthnOrigin("https://lonelyfuns.grok.me:443"), "https://lonelyfuns.grok.me");
+    assert.equal(
+      canonicalWebauthnOrigin("https://lonelyfuns.grok.me:443"),
+      "https://lonelyfuns.grok.me",
+    );
     assert.equal(
       webauthnOriginsMatch("https://lonelyfuns.grok.me:443", "https://lonelyfuns.grok.me"),
       true,
@@ -123,8 +126,8 @@ describe("passkeyCreateRequest", () => {
     assert.equal(options.authenticatorSelection?.userVerification, "required");
     assert.equal("authenticatorAttachment" in (options.authenticatorSelection ?? {}), false);
     assert.equal(options.rp.id, "localhost");
-    assert.equal(options.rp.name, "LonelyFuns");
-    assert.equal(options.user.name, "LonelyFuns - Taki");
-    assert.equal(options.user.displayName, "LonelyFuns - Taki");
+    assert.equal(options.rp.name, "aim100x.fun");
+    assert.equal(options.user.name, "aim100x.fun - Taki");
+    assert.equal(options.user.displayName, "aim100x.fun - Taki");
   });
 });

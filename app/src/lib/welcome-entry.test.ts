@@ -4,7 +4,6 @@ import {
   appendPinDigit,
   cookieIndicatesWelcomeEntered,
   pickWelcomeCover,
-  pinEntryStatus,
   shouldRedirectRootToWelcome,
   swipeProgress,
   swipeUnlocked,
@@ -12,7 +11,6 @@ import {
   WELCOME_ENTERED_COOKIE,
   WELCOME_ENTERED_VALUE,
   WELCOME_PATH,
-  WELCOME_PIN,
   WELCOME_PIN_LENGTH,
 } from "./welcome-entry.ts";
 
@@ -39,10 +37,7 @@ describe("welcome entry", () => {
 
   it("pools unique idol cover photos, not banners or avatars", () => {
     assert.deepEqual(
-      welcomeCoverPool([
-        { covers: ["", " /c1 ", "/c2"] },
-        { covers: ["/c1", "/c3"] },
-      ]),
+      welcomeCoverPool([{ covers: ["", " /c1 ", "/c2"] }, { covers: ["/c1", "/c3"] }]),
       ["/c1", "/c2", "/c3"],
     );
     assert.deepEqual(welcomeCoverPool([{ covers: [] }]), []);
@@ -50,8 +45,14 @@ describe("welcome entry", () => {
 
   it("picks a cover at random and does not invent one", () => {
     assert.equal(pickWelcomeCover([]), "");
-    assert.equal(pickWelcomeCover(["/a", "/b", "/c"], () => 0), "/a");
-    assert.equal(pickWelcomeCover(["/a", "/b", "/c"], () => 0.99), "/c");
+    assert.equal(
+      pickWelcomeCover(["/a", "/b", "/c"], () => 0),
+      "/a",
+    );
+    assert.equal(
+      pickWelcomeCover(["/a", "/b", "/c"], () => 0.99),
+      "/c",
+    );
   });
 });
 
@@ -73,16 +74,12 @@ describe("swipe unlock", () => {
   });
 });
 
-describe("welcome pin gate", () => {
-  it("accepts only 996996 and clears a wrong six", () => {
-    assert.equal(WELCOME_PIN, "996996");
+describe("welcome pin entry", () => {
+  it("accepts digits up to six without a shared preset PIN", () => {
     assert.equal(WELCOME_PIN_LENGTH, 6);
     assert.equal(appendPinDigit("", "9"), "9");
-    assert.equal(appendPinDigit("99699", "6"), WELCOME_PIN);
-    assert.equal(appendPinDigit("996996", "1"), WELCOME_PIN);
+    assert.equal(appendPinDigit("12345", "6"), "123456");
+    assert.equal(appendPinDigit("123456", "7"), "123456");
     assert.equal(appendPinDigit("99", "a"), "99");
-    assert.equal(pinEntryStatus("99699"), "incomplete");
-    assert.equal(pinEntryStatus("996996"), "ok");
-    assert.equal(pinEntryStatus("000000"), "wrong");
   });
 });

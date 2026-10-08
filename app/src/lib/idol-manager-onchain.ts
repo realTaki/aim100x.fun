@@ -1,15 +1,10 @@
-import {
-  createPublicClient,
-  http,
-  type Address,
-} from "viem";
+import { createPublicClient, http, type Address } from "viem";
 import { usdcToAtomicOrZero } from "@/lib/idol-pricing";
-import { loadPasskeyRecord } from "@/lib/auth/passkey-record";
+import { externalWalletAddress } from "@/lib/subscribe/connected-wallet";
 import {
   passkeyBuy,
   passkeyMint,
-  passkeySetIdolFields,
-  passkeySetPublic,
+  passkeySetIdolPricing,
   passkeySetSalePrice,
   passkeyWithdrawTba,
 } from "@/lib/auth/passkey-client";
@@ -74,7 +69,9 @@ export async function fetchIdolTokenOwner(tokenId: number): Promise<Address | nu
   }
 }
 
-export async function fetchPasskeyPublicKey(address: Address): Promise<{ x: bigint; y: bigint } | null> {
+export async function fetchPasskeyPublicKey(
+  address: Address,
+): Promise<{ x: bigint; y: bigint } | null> {
   try {
     const [x, y] = await Promise.all([
       publicClient.readContract({ address, abi: PASSKEY_ACCOUNT_ABI, functionName: "pubkeyX" }),
@@ -88,46 +85,7 @@ export async function fetchPasskeyPublicKey(address: Address): Promise<{ x: bigi
 
 export { isIdolManagerWallet };
 
-export async function fetchIdolPublic(tokenId: number): Promise<boolean> {
-  try {
-    return await publicClient.readContract({
-      address: IDOLS100X_ADDRESS as Address,
-      abi: IDOLS100X_MANAGER_ABI,
-      functionName: "publicOf",
-      args: [BigInt(tokenId)],
-    });
-  } catch {
-    return false;
-  }
-}
-
-export async function writeIdolPublicOnChain(
-  tokenId: number,
-  isPublic: boolean,
-): Promise<`0x${string}`> {
-  return passkeySetPublic(tokenId, isPublic);
-}
-
-export type IdolFieldsWrite = {
-  name: string;
-  bio: string;
-  personality: string;
-  look: string;
-  voice: string;
-  website: string;
-  twitter: string;
-  scenes: string;
-  welcome: string;
-  subscribePriceUsdc: bigint;
-  imageUnlockPriceUsdc: bigint;
-};
-
-export async function writeIdolFieldsOnChain(
-  tokenId: number,
-  fields: IdolFieldsWrite,
-): Promise<`0x${string}`> {
-  return passkeySetIdolFields(tokenId, fields);
-}
+export const writeIdolPricingOnChain = passkeySetIdolPricing;
 
 export async function resolveIdolTbaAddress(tokenId: number): Promise<Address | null> {
   const cached = subscribePayTo(tokenId);
@@ -167,13 +125,13 @@ export async function writeIdolSalePriceOnChain(
 
 export async function mintIdolOnChain(): Promise<`0x${string}`> {
   const price = DEFAULT_SALE_PRICE_USDC_ATOMIC;
-  const record = loadPasskeyRecord();
-  if (record) {
+  const address = externalWalletAddress();
+  if (address) {
     const balance = await publicClient.readContract({
       address: MONAD_TESTNET_USDC as Address,
       abi: ERC20_ABI,
       functionName: "balanceOf",
-      args: [record.address],
+      args: [address],
     });
     if (balance < price) throw new Error("ERC20InsufficientBalance");
   }
@@ -187,13 +145,13 @@ export async function buyIdolOnChain(tokenId: number): Promise<`0x${string}`> {
     functionName: "salePriceUsdcOf",
     args: [BigInt(tokenId)],
   });
-  const record = loadPasskeyRecord();
-  if (record) {
+  const address = externalWalletAddress();
+  if (address) {
     const balance = await publicClient.readContract({
       address: MONAD_TESTNET_USDC as Address,
       abi: ERC20_ABI,
       functionName: "balanceOf",
-      args: [record.address],
+      args: [address],
     });
     if (balance < price) throw new Error("ERC20InsufficientBalance");
   }
@@ -204,12 +162,10 @@ export async function buyIdolOnChain(tokenId: number): Promise<`0x${string}`> {
  * NFT owner withdraws all USDC from the idol ERC-6551 TBA to their wallet.
  * Non-owners fail in the app and on-chain (TBA only accepts execute from token owner).
  */
-export async function withdrawIdolTbaUsdcToOwner(
-  tokenId: number,
-): Promise<`0x${string}`> {
-  const record = loadPasskeyRecord();
-  if (!record) throw new Error("Sign in with a passkey first");
-  const wallet = record.address;
+export async function withdrawIdolTbaUsdcToOwner(tokenId: number): Promise<`0x${string}`> {
+  const address = externalWalletAddress();
+  if (!address) throw new Error("Sign in with a wallet first");
+  const wallet = address;
   const owner = await fetchIdolTokenOwner(tokenId);
   if (!isIdolManagerWallet(owner, wallet)) {
     throw new Error("Couldn't save");

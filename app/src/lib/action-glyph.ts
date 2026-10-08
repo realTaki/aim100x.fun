@@ -12,7 +12,7 @@ export function delay(ms: number): Promise<void> {
 export function actionErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message.trim()) return err.message.trim();
   if (typeof err === "string" && err.trim()) return err.trim();
-  return "操作失败，请再试一次";
+  return "Something went wrong. Please try again.";
 }
 
 export function isActionGlyphBusy(status: ActionGlyph): boolean {

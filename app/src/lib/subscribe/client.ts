@@ -1,7 +1,7 @@
-import { passkeyPay, passkeySubscribe } from "@/lib/auth/passkey-client";
+import { passkeySubscribe } from "@/lib/auth/passkey-client";
 import type { AppUser } from "@/lib/auth/use-current-user";
 import { persistNewSubscriberThread } from "@/lib/chat-client";
-import { getCatalogIdol } from "@/lib/idol-catalog";
+import { getCatalogIdol, getChatIdol } from "@/lib/idol-catalog";
 
 export async function subscribeToIdol(
   tokenId: number,
@@ -13,17 +13,15 @@ export async function subscribeToIdol(
   const amount = BigInt(maxAmountAtomic);
   await passkeySubscribe(idol.tokenId, amount);
   if (user) {
-    await persistNewSubscriberThread(user, idol).catch(() => undefined);
+    const chat = await getChatIdol({ data: { tokenId } });
+    if (chat) await persistNewSubscriberThread(user, chat).catch(() => undefined);
   }
   return { ok: true, isFan: true };
 }
 
-export async function unlockIdolImage(
-  tokenId: number,
-  _imageId: string,
-  maxAmountAtomic: string,
-): Promise<{ ok: true }> {
-  const amount = BigInt(maxAmountAtomic);
-  await passkeyPay(tokenId, amount);
-  return { ok: true };
+export async function unlockIdolImage(tokenId: number, imageId: string, maxAmountAtomic: string) {
+  const { quoteImageUnlock } = await import("../data");
+  const { checkoutChatImage } = await import("../chat-image-checkout");
+  const quote = await quoteImageUnlock({ data: { tokenId, imageId, maxAmountAtomic } });
+  return checkoutChatImage(imageId, quote.paymentIntent);
 }

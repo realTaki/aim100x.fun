@@ -1,9 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 
-/**
- * Auth middleware for server functions — Passkey (or gate) user id from the
- * client-held session JWT. Live preview forwards the bearer token via the client hook.
- */
+/** Server functions authenticate the signed HttpOnly app-wallet session cookie. */
 export const authMiddleware = createMiddleware({ type: "function" })
   .client(async ({ next }) => {
     const { getBearerToken } = await import("./client");

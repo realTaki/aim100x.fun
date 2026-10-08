@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bot, Sparkles } from "lucide-react";
-import { LfLogo } from "@/components/lf-logo";
-import { BOTTOM_GLASS_TAB_BAR_MAIN_PB } from "@/components/bottom-glass-tab-bar";
+import { HubHeader } from "@/components/hub-header";
 import { EmptyState } from "@/components/empty-state";
 import { IdolPlazaCard } from "@/components/idol-plaza-card";
 import { SubscribedEmpty } from "@/components/subscribed-empty";
@@ -47,11 +46,13 @@ export function ManagerCenterScreen() {
   }, [user, isPending, navigate, refreshHub]);
 
   function mintAmateur() {
-    void mintPay.run(async () => {
-      await mintIdolOnChain();
-    }).then((result) => {
-      if (result === "done" || result === "idle") refreshHub(true);
-    });
+    void mintPay
+      .run(async () => {
+        await mintIdolOnChain();
+      })
+      .then((result) => {
+        if (result === "done" || result === "idle") refreshHub(true);
+      });
   }
 
   const owned = hub?.owned ?? [];
@@ -59,26 +60,21 @@ export function ManagerCenterScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 bg-bg pb-3">
-        <div className="flex items-center gap-2">
-          <LfLogo className="shrink-0 text-[0.72rem] sm:text-sm" />
-          <div className="flex-1" />
-          <Link
-            to="/me/manager/agent"
-            className="lf-icon-btn text-accent"
-            aria-label="Manage agent account"
-          >
-            <span className="flex items-center gap-0.5" aria-hidden>
-              <span className="text-sm font-semibold leading-none">+</span>
-              <Bot className="size-4" strokeWidth={1.75} />
-            </span>
-          </Link>
-        </div>
-      </div>
+      <HubHeader>
+        <div className="flex-1" />
+        <Link
+          to="/me/manager/agent"
+          className="lf-icon-btn text-accent"
+          aria-label="Manage agent account"
+        >
+          <span className="flex items-center gap-0.5" aria-hidden>
+            <span className="text-sm font-semibold leading-none">+</span>
+            <Bot className="size-4" strokeWidth={1.75} />
+          </span>
+        </Link>
+      </HubHeader>
 
-      <section
-        className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y ${BOTTOM_GLASS_TAB_BAR_MAIN_PB}`}
-      >
+      <section className="lf-hub-scroll flex flex-col gap-3.5">
         {isPending || !user ? (
           <div className="flex flex-1 items-center justify-center py-16">
             <div className="size-10 animate-pulse rounded-full bg-surface-2" />
@@ -103,9 +99,7 @@ export function ManagerCenterScreen() {
                 status={mintPay.status}
               />
             ) : null}
-            {nextAmateur ? (
-              <hr className="m-0 h-px w-full border-0 bg-border" />
-            ) : null}
+            {nextAmateur ? <hr className="m-0 h-px w-full border-0 bg-border" /> : null}
             {owned.length > 0 ? (
               owned.map((creator, i) => (
                 <IdolPlazaCard

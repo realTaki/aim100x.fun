@@ -3,10 +3,7 @@ import { createPortal } from "react-dom";
 import { Check, Copy, X } from "lucide-react";
 import { renderSVG } from "uqr";
 import { shortWalletAddress } from "@/lib/auth/account-host";
-import {
-  DEPOSIT_NETWORK_ASSET_LABEL,
-  DEPOSIT_OTHER_ASSET_WARNING,
-} from "@/lib/lonely-usd";
+import { DEPOSIT_NETWORK_ASSET_LABEL, DEPOSIT_OTHER_ASSET_WARNING } from "@/lib/lonely-usd";
 
 const CARD =
   "w-full max-w-xs rounded-3xl border border-border bg-surface/80 p-4 shadow-[0_20px_60px_rgb(0_0_0_/_0.35)] backdrop-blur-md";
@@ -81,12 +78,7 @@ export function LonelyUsdDepositSheet({
         aria-label="Close"
         onClick={() => onOpenChange(false)}
       />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="充值"
-        className={`relative z-10 ${CARD}`}
-      >
+      <div role="dialog" aria-modal="true" aria-label="Deposit" className={`relative z-10 ${CARD}`}>
         <div className="mb-3 flex items-center justify-end">
           <button
             type="button"

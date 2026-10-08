@@ -1,25 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WelcomeSplash } from "@/components/welcome-splash";
-import { listPlazaIdols } from "@/lib/idol-catalog";
-import { pickWelcomeCover, welcomeCoverPool } from "@/lib/welcome-entry";
+import { PrivacyEntry } from "@/components/privacy-gate";
+import { safePrivacyNext } from "@/lib/privacy-pin";
 
 export const Route = createFileRoute("/welcome")({
-  staleTime: 0,
-  preloadStaleTime: 0,
-  gcTime: 0,
-  shouldReload: true,
-  loader: async () => {
-    try {
-      const idols = await listPlazaIdols();
-      return { coverSrc: pickWelcomeCover(welcomeCoverPool(idols)) };
-    } catch {
-      return { coverSrc: "" };
-    }
-  },
+  validateSearch: (raw: Record<string, unknown>) => ({
+    pin: raw.pin === true || raw.pin === "1" || raw.pin === 1,
+    next: safePrivacyNext(raw.next),
+  }),
   component: WelcomePage,
 });
-
 function WelcomePage() {
-  const { coverSrc } = Route.useLoaderData();
-  return <WelcomeSplash coverSrc={coverSrc} />;
+  const { pin, next } = Route.useSearch();
+  return <PrivacyEntry next={next} autoCheck={pin} />;
 }

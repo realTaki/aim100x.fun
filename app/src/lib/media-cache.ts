@@ -1,9 +1,10 @@
+import { authorizedMediaUrl } from "./chat-image-checkout";
 import { stripMediaSizeParam } from "@/lib/media-app-id";
 
 const CACHE_NAME = "lf-media-full";
 
 function fullUrl(src: string): string {
-  return stripMediaSizeParam(src);
+  return authorizedMediaUrl(stripMediaSizeParam(src));
 }
 
 async function openCache(): Promise<Cache | null> {

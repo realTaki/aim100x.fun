@@ -22,8 +22,9 @@
   --color-border: #322b3e;
   --color-avatar-ring: #f4f0f8;
   --color-danger: #ef4444;
-  --font-sans: "Outfit", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    "Outfit", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", ui-sans-serif,
+    system-ui, sans-serif;
   --text-md: 0.9375rem;
   --text-md--line-height: 1.5;
   --aspect-portrait: 2 / 3;
@@ -117,12 +118,42 @@ body {
 }
 
 .lf-frame {
+  --lf-page-gutter: 1rem;
+  --lf-safe-top: max(0.75rem, env(safe-area-inset-top));
+  --lf-nav-bottom: max(0.65rem, env(safe-area-inset-bottom));
+  --lf-nav-clearance: calc(var(--lf-nav-bottom) + 6.1rem);
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgb(192 38 255 / 0.05), transparent 18%),
-    var(--color-bg);
+  background: linear-gradient(180deg, rgb(192 38 255 / 0.05), transparent 18%), var(--color-bg);
+}
+
+/* Shared hub geometry: page padding, scroll ownership and capsule clearance. */
+.lf-hub-shell {
+  padding-inline: var(--lf-page-gutter);
+  padding-top: var(--lf-safe-top);
+}
+
+.lf-hub-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding-bottom: var(--lf-nav-clearance);
+}
+
+.lf-hub-nav {
+  padding-inline: var(--lf-page-gutter);
+  padding-bottom: var(--lf-nav-bottom);
+}
+
+/* The PIN header and feedback stay visible while its keypad can scroll. */
+.lf-entry-content {
+  padding-inline: var(--lf-page-gutter);
+  padding-top: var(--lf-safe-top);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 /* Phone: fill the screen aspect. Desktop (mouse or a large viewport): height-first 19.5:9. */
@@ -204,6 +235,33 @@ body {
   box-shadow: 0 0 0 3px rgb(192 38 255 / 0.18);
 }
 
+/* Profile fields have their own geometry; search inputs reserve space for an icon. */
+.lf-form-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color-fg);
+  outline: none;
+  transition:
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.lf-form-field::placeholder {
+  color: var(--color-subtle);
+}
+
+.lf-form-field:focus {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  box-shadow: 0 0 0 3px rgb(192 38 255 / 0.18);
+}
+
 .lf-icon-btn {
   display: flex;
   width: 2.5rem;
@@ -252,6 +310,29 @@ body {
     radial-gradient(120% 70% at 70% 18%, rgb(192 38 255 / 0.32), transparent 46%),
     radial-gradient(90% 50% at 20% 88%, rgb(88 28 135 / 0.45), transparent 58%),
     linear-gradient(180deg, #1a1028 0%, #0a0810 42%, #12081c 100%);
+}
+
+.lf-lock-clock {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "Helvetica Neue",
+    system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.22);
+}
+
+.lf-lock-clock-date {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+}
+
+.lf-lock-clock-time {
+  margin-top: 0.05rem;
+  font-size: 4.85rem;
+  font-weight: 300;
+  line-height: 0.96;
+  letter-spacing: -0.065em;
 }
 
 @keyframes lf-face-id-fail {
@@ -305,8 +386,8 @@ body {
 
 .lf-pin-pad {
   font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
 }
 
 .lf-pin-key {

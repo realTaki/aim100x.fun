@@ -3,7 +3,15 @@ export function sanitizeIdolReply(text: string): string {
   return text
     .replace(/\[(?:图片|照片|photo|image|pic|selfie|img)[^\]]*\]/gi, "")
     .replace(/【(?:图片|照片)[^\]]*】/g, "")
-    .replace(/[（(]\s*(?:发送|送出|发一张|发了)?\s*(?:图片|照片|自拍|photo|image)[^)）]*[)）]/gi, "")
+    .replace(
+      /[（(]\s*(?:发送|送出|发一张|发了)?\s*(?:图片|照片|自拍|photo|image)[^)）]*[)）]/gi,
+      "",
+    )
+    .replace(
+      /[（(]\s*using\s+(?:send_photo|send_voice|generate_new_photos|expand_photo_library)\b[^)）]*[)）]/gi,
+      "",
+    )
+    .replace(/(?:^|\n)\s*run\s+tool\b[^\n]*/gi, "")
     .replace(/\*(?:sends?|sent|sending|drops?|dropped)[^*]{0,80}\*/gi, "")
     .replace(/^\s*(?:图片|照片)\s*[:：].*$/gim, "")
     .replace(
@@ -49,11 +57,7 @@ const IN_PERSON_CHIP =
   /过来抱抱|过来让我|过来擦|帮你擦|让我帮你|滴到.{0,6}身上|坐过来|到我身边|抱过来|伸手帮|擦干|递纸|递毛巾|come here|let me wipe/i;
 
 /** Shortcut chips are tap-to-send drafts for the FAN, never lines the idol would say. */
-export function isFanShortcutChoice(
-  text: string,
-  idolName: string,
-  lastIdolReply = "",
-): boolean {
+export function isFanShortcutChoice(text: string, idolName: string, lastIdolReply = ""): boolean {
   const t = text.trim();
   if (t.length < 2) return false;
   if (idolName && t.includes(idolName)) return false;

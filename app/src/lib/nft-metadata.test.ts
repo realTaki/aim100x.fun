@@ -49,10 +49,10 @@ describe("parseMetadataTokenKey", () => {
 });
 
 describe("absolutePublicMediaUrl", () => {
-  it("prefixes the production origin for /api/media paths", () => {
+  it("prefixes the collection metadata origin for /api/media paths", () => {
     assert.equal(
       absolutePublicMediaUrl("/api/media/seed%3A1%3Aprofile%3Aavatar"),
-      "https://lonelyfuns.vercel.app/api/media/seed%3A1%3Aprofile%3Aavatar",
+      "https://aim100x.fun/api/media/seed%3A1%3Aprofile%3Aavatar",
     );
   });
 
@@ -67,30 +67,24 @@ describe("absolutePublicMediaUrl", () => {
 });
 
 describe("buildErc721TokenMetadata", () => {
-  it("returns OpenSea-style JSON from named fields + Notion avatar", () => {
+  it("returns marketplace JSON from public Neon fields and an R2 media route", () => {
     const json = buildErc721TokenMetadata(idol());
     assert.equal(json.name, "Natalie100x");
     assert.equal(json.description, "up this late for me? stay.");
-    assert.equal(
-      json.image,
-      "https://lonelyfuns.vercel.app/api/media/seed%3A1%3Aprofile%3Aavatar",
-    );
-    assert.equal(json.external_url, "https://lonelyfuns.vercel.app/idol/1");
+    assert.equal(json.image, "https://aim100x.fun/api/media/seed%3A1%3Aprofile%3Aavatar");
+    assert.equal(json.external_url, "https://aim100x.fun/idol/1");
     assert.equal(json.website, "");
     assert.equal(json.twitter, "");
-    assert.equal(nftMetadataTokenUri(1), "https://lonelyfuns.vercel.app/api/metadata/1");
+    assert.equal(nftMetadataTokenUri(1), "https://aim100x.fun/api/metadata/1");
     const isPublic = json.attributes.find((a) => a.trait_type === "Public");
     const persona = json.attributes.find((a) => a.trait_type === "人设");
     const token = json.attributes.find((a) => a.trait_type === "Token ID");
     const slug = json.attributes.find((a) => a.trait_type === "Slug");
     assert.equal(isPublic?.value, "true");
-    assert.equal(persona?.value, "直球、会撩");
+    assert.equal(persona, undefined);
     assert.equal(token?.value, 1);
     assert.equal(slug, undefined);
-    assert.equal(
-      json.image.includes("notion") || json.image.includes("amazonaws"),
-      false,
-    );
+    assert.equal(json.image.includes("notion") || json.image.includes("amazonaws"), false);
   });
 
   it("includes optional website and twitter even when empty", () => {
@@ -102,7 +96,7 @@ describe("buildErc721TokenMetadata", () => {
     );
     assert.equal(filled.website, "https://natalie.example");
     assert.equal(filled.twitter, "https://x.com/natalie");
-    assert.equal(filled.external_url, "https://lonelyfuns.vercel.app/idol/1");
+    assert.equal(filled.external_url, "https://aim100x.fun/idol/1");
   });
 
   it("does not put cover/banner ids in image or on-chain-shaped fields", () => {
@@ -114,4 +108,13 @@ describe("buildErc721TokenMetadata", () => {
       false,
     );
   });
+});
+
+it("never uses private personality as public metadata fallback", () => {
+  assert.equal(
+    JSON.stringify(buildErc721TokenMetadata(idol({ bio: "", personality: "SECRET" }))).includes(
+      "SECRET",
+    ),
+    false,
+  );
 });

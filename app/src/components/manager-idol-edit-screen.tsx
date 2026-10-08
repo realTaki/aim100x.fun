@@ -22,14 +22,8 @@ function OwnerEdit({
 }
 
 export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
-  const {
-    idol,
-    missing,
-    loading,
-    canEdit,
-    persistNamed,
-    reloadIdol,
-  } = useManagerIdolEditor(tokenId);
+  const { idol, missing, loading, canEdit, persistNamed, reloadIdol } =
+    useManagerIdolEditor(tokenId);
   const [albumKind, setAlbumKind] = useState<ProfileImageKind | null>(null);
   const [draftWebsite, setDraftWebsite] = useState("");
   const [draftTwitter, setDraftTwitter] = useState("");
@@ -51,7 +45,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
       <main className="flex h-full min-h-0 flex-col items-center justify-center overflow-hidden px-6 text-center">
         <p className="text-sm text-muted">Couldn't find this idol.</p>
         <Link to="/me/manager" className="mt-4 text-sm text-accent underline">
-          返回经纪人中心
+          Back to creator center
         </Link>
       </main>
     );
@@ -80,7 +74,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
         bannerBadge={
           <OwnerEdit
             canEdit={canEdit}
-            label="上传横幅"
+            label="Upload banner"
             icon={Upload}
             onClick={() => openAlbum("banner")}
             className="absolute right-3 bottom-3 z-30"
@@ -89,7 +83,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
         avatarBadge={
           <OwnerEdit
             canEdit={canEdit}
-            label="上传头像"
+            label="Upload avatar"
             icon={Upload}
             onClick={() => openAlbum("avatar")}
             className="absolute -right-1 -bottom-1 size-7 border-border/80"
@@ -100,7 +94,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
             <IdolLinkButtons tokenId={idol.tokenId} />
             <OwnerEdit
               canEdit={canEdit}
-              label="编辑链接"
+              label="Edit links"
               onClick={() => {
                 setDraftWebsite(idol.website);
                 setDraftTwitter(idol.twitter);
@@ -115,7 +109,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
               to="/me/manager/$tokenId/advanced"
               params={{ tokenId: String(idol.tokenId) }}
               className="flex h-10 shrink-0 items-center justify-center rounded-full bg-surface-2 px-3 text-fg ring-1 ring-border transition-colors hover:bg-surface-3"
-              aria-label="高级设置"
+              aria-label="Advanced settings"
             >
               <SlidersHorizontal className="size-4" strokeWidth={1.75} />
             </Link>
@@ -127,10 +121,10 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
               canEdit={canEdit}
               saved={displayName}
               maxLength={48}
-              label="名称"
+              label="Name"
               className="break-words text-2xl leading-tight font-semibold tracking-tight"
               onSave={async (next) => {
-                if (!next) throw new Error("名字不能为空");
+                if (!next) throw new Error("Name cannot be empty.");
                 if (next === idol.name.trim()) return;
                 await persistNamed({ name: next });
               }}
@@ -144,7 +138,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
               saved={bioText}
               multiline
               maxLength={500}
-              label="简介"
+              label="Bio"
               className="text-md leading-relaxed text-fg/88"
               onSave={async (next) => {
                 if (next === idolBio(idol)) return;
@@ -195,7 +189,7 @@ export function ManagerIdolEditScreen({ tokenId }: { tokenId: number | null }) {
         onOpenChange={(open) => {
           if (!open) setLinksOpen(false);
         }}
-        title="链接"
+        title="Links"
         closeOnSuccess
         onSave={async () => {
           await persistNamed({

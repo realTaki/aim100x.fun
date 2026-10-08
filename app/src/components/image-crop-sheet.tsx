@@ -96,7 +96,7 @@ export function ImageCropSheet({
     <LightEditSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="裁剪"
+      title="Crop"
       closeOnSuccess
       onSave={async () => {
         if (!file) throw new Error("Choose an image");
@@ -104,12 +104,10 @@ export function ImageCropSheet({
         await onCropped(result);
       }}
       saveDisabled={!file}
-      saveLabel="使用"
+      saveLabel="Use photo"
     >
       <div className="mx-auto overflow-hidden rounded-xl bg-surface-2" style={frame}>
-        {src ? (
-          <img src={src} alt="" className="size-full object-cover" />
-        ) : null}
+        {src ? <img src={src} alt="" className="size-full object-cover" /> : null}
       </div>
     </LightEditSheet>
   );

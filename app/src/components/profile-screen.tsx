@@ -53,9 +53,8 @@ export function ProfileScreen({ creator }: { creator: Idol }) {
     void subscribePay.run(subscribe);
   }
 
-  const subscribeLabel = `订阅 ${subscribePriceLabel}`;
-  const showDm =
-    isFan && subscribePay.status !== "pending" && subscribePay.status !== "success";
+  const subscribeLabel = `Subscribe ${subscribePriceLabel}`;
+  const showDm = isFan && subscribePay.status !== "pending" && subscribePay.status !== "success";
   const showBuy = salePrice > 0 && buyPay.status !== "done";
   const buyLabel = formatUsdcPrice(salePrice);
   const subscribeBtnClass = cn(
@@ -83,8 +82,8 @@ export function ProfileScreen({ creator }: { creator: Idol }) {
               to="/chat/$tokenId"
               params={{ tokenId: String(creator.tokenId) }}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-fg ring-1 ring-border transition-colors hover:bg-surface-3"
-              aria-label="私信"
-              title="私信"
+              aria-label="Message"
+              title="Message"
             >
               <Mail className="size-4" strokeWidth={1.75} aria-hidden />
             </Link>

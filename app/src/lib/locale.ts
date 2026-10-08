@@ -5,6 +5,35 @@ export function readBrowserLocale(): string {
   return normalizeLocale(raw);
 }
 
+const PREFERRED_LOCALE_COOKIE = "aim.preferred-locale";
+
+/** Explicit device preference, then an existing profile preference, then the browser. */
+export function readPreferredLocale(storedLocale = ""): string {
+  if (typeof document !== "undefined") {
+    const value = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${PREFERRED_LOCALE_COOKIE}=`))
+      ?.slice(PREFERRED_LOCALE_COOKIE.length + 1);
+    if (value) {
+      try {
+        const tag = decodeURIComponent(value);
+        if (/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/i.test(tag)) return normalizeLocale(tag);
+      } catch {
+        /* Ignore malformed cookies and use the profile/browser fallback. */
+      }
+    }
+  }
+  return storedLocale.trim() ? normalizeLocale(storedLocale) : readBrowserLocale();
+}
+
+/** Called only when the user explicitly saves a language selection. */
+export function writePreferredLocale(locale: string): void {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${PREFERRED_LOCALE_COOKIE}=${encodeURIComponent(normalizeLocale(locale))}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+}
+
 export function normalizeLocale(raw: string): string {
   const trimmed = raw.trim().replace(/_/g, "-");
   if (!trimmed) return "en";
@@ -32,26 +61,26 @@ export function localePromptName(locale: string): string {
 
 /** Languages shown on the prefer-language profile picker. */
 export const PROFILE_LOCALES = [
-  { value: "zh-CN", label: "简体中文" },
-  { value: "zh-TW", label: "繁體中文" },
+  { value: "zh-CN", label: "Chinese (Simplified)" },
+  { value: "zh-TW", label: "Chinese (Traditional)" },
   { value: "en", label: "English" },
-  { value: "ja", label: "日本語" },
-  { value: "ko", label: "한국어" },
-  { value: "es", label: "Español" },
-  { value: "fr", label: "Français" },
-  { value: "de", label: "Deutsch" },
-  { value: "pt-BR", label: "Português" },
-  { value: "vi", label: "Tiếng Việt" },
-  { value: "th", label: "ไทย" },
-  { value: "id", label: "Bahasa Indonesia" },
-  { value: "ru", label: "Русский" },
-  { value: "ar", label: "العربية" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "pt-BR", label: "Portuguese (Brazil)" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "th", label: "Thai" },
+  { value: "id", label: "Indonesian" },
+  { value: "ru", label: "Russian" },
+  { value: "ar", label: "Arabic" },
 ] as const;
 
-export function localeNativeName(locale: string): string {
+export function localeDisplayName(locale: string): string {
   const tag = normalizeLocale(locale);
   try {
-    const dn = new Intl.DisplayNames([tag], { type: "language" });
+    const dn = new Intl.DisplayNames(["en"], { type: "language" });
     return dn.of(tag) ?? dn.of(tag.split("-")[0] ?? tag) ?? tag;
   } catch {
     return tag;
@@ -65,7 +94,7 @@ export function profileLocaleOptions(current = ""): { value: string; label: stri
   }));
   const tag = current.trim() ? normalizeLocale(current) : "";
   if (tag && !list.some((row) => localesMatch(row.value, tag))) {
-    list.unshift({ value: tag, label: localeNativeName(tag) });
+    list.unshift({ value: tag, label: localeDisplayName(tag) });
   }
   return list;
 }

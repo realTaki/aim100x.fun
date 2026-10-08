@@ -102,20 +102,17 @@ export function InlineFieldEditor({
             maxLength={maxLength}
             disabled={pending || glyph === "success"}
             aria-label={label}
-            className={cn(
-              className,
-              "absolute inset-0 size-full bg-transparent outline-none",
-            )}
+            className={cn(className, "absolute inset-0 size-full bg-transparent outline-none")}
           />
         )
       ) : null}
       <ActionGlyphButton
         status={glyph}
         iconClassName="size-3.5"
-        idleLabel={editing ? "保存" : `编辑${label}`}
-        pendingLabel="保存中"
-        successLabel="已保存"
-        errorLabel="保存失败"
+        idleLabel={editing ? "Save" : `Edit ${label}`}
+        pendingLabel="Saving"
+        successLabel="Saved"
+        errorLabel="Could not save"
         onClick={() => {
           if (!editing) {
             setDraft(saved);

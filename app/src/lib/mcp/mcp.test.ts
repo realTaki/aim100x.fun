@@ -32,7 +32,10 @@ describe("remote MCP auth envelope", () => {
     const parsed = parseMcpBearerToken(token);
     assert.ok(parsed);
     assert.equal(parsed.d, key.privateKey);
-    assert.equal(verifyWebAuthn(parsed.sig, MCP_AUTH_CHALLENGE, BigInt(parsed.x), BigInt(parsed.y)), true);
+    assert.equal(
+      verifyWebAuthn(parsed.sig, MCP_AUTH_CHALLENGE, BigInt(parsed.x), BigInt(parsed.y)),
+      true,
+    );
     const broken = parseMcpBearerToken(token.slice(0, -4) + "abcd");
     assert.equal(broken, null);
   });
@@ -74,7 +77,8 @@ describe("agent Codex markdown", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
     });
     assert.match(markdown, new RegExp(REMOTE_MCP_URL.replaceAll(".", "\\.")));
-    assert.match(markdown, /codex mcp add lonelyfuns --url/);
+    assert.match(markdown, /^# aim100x\.fun Agent/m);
+    assert.match(markdown, /codex mcp add aim100x --url/);
     assert.match(markdown, /--bearer-token-env-var LONELYFUNS_MCP_TOKEN/);
     assert.match(markdown, /export LONELYFUNS_MCP_TOKEN='lf1\./);
     assert.match(markdown, /Authorization/);
@@ -96,5 +100,41 @@ describe("P-256 derive", () => {
     const derived = deriveAgentPublic(PRIVATE_KEY);
     assert.equal(derived.pubkeyX, BigInt(bytesToHex(publicKey.subarray(1, 33))));
     assert.equal(derived.pubkeyY, BigInt(bytesToHex(publicKey.subarray(33, 65))));
+  });
+});
+
+describe("private author config authorization", () => {
+  it("rejects unauthorized reads and edits before accessing private storage", async () => {
+    const { LonelyFunsClient } = await import("./client.ts");
+    const { MCP_CHAIN } = await import("./constants.ts");
+    const account = "0x0000000000000000000000000000000000000001" as const;
+    const owner = "0x0000000000000000000000000000000000000002" as const;
+    const client = new LonelyFunsClient({
+      ...MCP_CHAIN,
+      agentAccount: account,
+      pubkeyX: 1n,
+      pubkeyY: 2n,
+      credentialId: "0x00",
+      userOpTimeoutMs: 1000,
+    });
+    Object.assign(client.publicClient, {
+      readContract: async ({ functionName }: { functionName: string }) => {
+        if (functionName === "ownerOf") return owner;
+        if (functionName === "agentOf") return { agent: owner, role: 2 };
+        throw new Error("Private data was read before authorization");
+      },
+    });
+    await assert.rejects(client.getIdol(1), /needs Content or Full authorization/);
+    await assert.rejects(
+      client.updateContent(1, { personality: "changed" }),
+      /needs Content or Full authorization/,
+    );
+    await assert.rejects(client.setPublic(1, true), /needs Content or Full authorization/);
+    Object.assign(client.publicClient, {
+      readContract: async () => {
+        throw new Error("RPC unavailable");
+      },
+    });
+    await assert.rejects(client.getIdol(1), /RPC unavailable/);
   });
 });

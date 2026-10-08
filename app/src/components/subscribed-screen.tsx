@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { IdolPlazaCard } from "@/components/idol-plaza-card";
+import { FanIdolCard } from "@/components/fan-idol-card";
 import { SubscribedEmpty } from "@/components/subscribed-empty";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { Idol } from "@/lib/idols";
-import { writeFanCache } from "@/lib/fan-cache";
-import { resolveConnectedWallet } from "@/lib/subscribe/connected-wallet";
-import { isFanOfTokenId } from "@/lib/subscribe/fan-status-client";
 import { loadSubscribedIdolsForFan } from "@/lib/subscribe/subscribed-idols-client";
 
 export function SubscribedScreen() {
@@ -38,31 +35,9 @@ export function SubscribedScreen() {
         <SubscribedEmpty />
       ) : (
         idols.map((creator, i) => (
-          <SubscribedIdolCard key={creator.tokenId} creator={creator} priority={i === 0} />
+          <FanIdolCard key={creator.tokenId} creator={creator} priority={i === 0} />
         ))
       )}
     </section>
-  );
-}
-
-function SubscribedIdolCard({ creator, priority }: { creator: Idol; priority: boolean }) {
-  const { user } = useCurrentUserState();
-  return (
-    <div
-      onPointerDown={() => {
-        if (!user) return;
-        void resolveConnectedWallet(user)
-          .then((wallet) =>
-            wallet
-              ? isFanOfTokenId(creator.tokenId, wallet).then((isFan) =>
-                  writeFanCache(wallet, creator.tokenId, isFan),
-                )
-              : undefined,
-          )
-          .catch(() => {});
-      }}
-    >
-      <IdolPlazaCard creator={creator} priority={priority} />
-    </div>
   );
 }

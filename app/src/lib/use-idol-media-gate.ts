@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ImageContentRating } from "@/lib/image-content-rating";
 import { imageIdFromUrl } from "@/lib/library-rows";
-import {
-  isNsfwMediaLocked,
-  resolveImageContentRating,
-} from "@/lib/idol-media-rating";
+import { isNsfwMediaLocked, resolveImageContentRating } from "@/lib/idol-media-rating";
 import type { Idol } from "@/lib/idols";
 import {
   formatUsdcPrice,
@@ -17,6 +14,7 @@ import {
   listLocalUnlockedImageIds,
   markLocalImageUnlocked,
 } from "@/lib/subscribe/image-unlock-local";
+import { authorizedMediaUrl } from "@/lib/chat-image-checkout";
 import { unlockIdolImage } from "@/lib/subscribe/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useIdolSubscribe } from "@/lib/use-idol-fan";
@@ -52,6 +50,7 @@ export function useIdolMediaGate(
     (url: string, explicit?: ImageContentRating, messageUnlocked?: boolean) => {
       const rating = resolveImageContentRating(idol, url, explicit);
       const imageId = imageIdFromUrl(url);
+      if (rating === "NSFW" && authorizedMediaUrl(url) === url && !messageUnlocked) return true;
       return isNsfwMediaLocked(rating, isFan, imageId, unlockedIds, {
         chatPerImagePaywall,
         messageUnlocked,
@@ -66,7 +65,10 @@ export function useIdolMediaGate(
       if (!imageId) throw new Error("Pay failed");
       const w = wallet ?? (await resolveConnectedWallet(user));
       if (!w) throw new Error("Need wallet");
-      if (listLocalUnlockedImageIds(w, idol.tokenId).includes(imageId)) {
+      if (
+        listLocalUnlockedImageIds(w, idol.tokenId).includes(imageId) &&
+        authorizedMediaUrl(url) !== url
+      ) {
         setUnlockedIds((prev) => new Set([...prev, imageId]));
         return;
       }

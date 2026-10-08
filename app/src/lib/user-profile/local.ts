@@ -59,9 +59,11 @@ export function subscribeUserProfile(onStoreChange: () => void): () => void {
   };
   window.addEventListener("lonelyfuns:user-profile", onCustom);
   window.addEventListener("storage", onStorage);
+  window.addEventListener("languagechange", onCustom);
   return () => {
     window.removeEventListener("lonelyfuns:user-profile", onCustom);
     window.removeEventListener("storage", onStorage);
+    window.removeEventListener("languagechange", onCustom);
   };
 }
 
@@ -100,7 +102,9 @@ export function seedProfileLocale(userId: string, locale: string): boolean {
 }
 
 export function profileIsFilled(profile: StoredUserProfile): boolean {
-  return Boolean(profile.username.trim() || profile.bio.trim() || profile.customAvatar);
+  return Boolean(
+    profile.username.trim() || profile.bio.trim() || profile.customAvatar || profile.locale.trim(),
+  );
 }
 
 /** Read along passkey → wallet keys; copy a legacy wallet profile onto the passkey key. */

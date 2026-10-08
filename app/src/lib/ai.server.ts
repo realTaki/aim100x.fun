@@ -15,14 +15,16 @@ import { hasHan } from "@/lib/utils";
 import {
   CHAT_COMPLETION_TIMEOUT_MS,
   chatCompletionTimeoutSignal,
+  chatPromptCacheKey,
   decodeTtsAudio,
   isAiChatBodyOk,
   postChatCompletions,
-  resolveAiBackend,
-  resolveMiniMaxBackend,
+  postAiRequest,
   ttsRequest,
   type MiniMaxBackend,
 } from "@/lib/ai-provider";
+import { resolveUserAiBackend } from "./ai-user.server";
+import { getSessionUser } from "@/lib/auth/verify.server";
 import { localePromptName } from "@/lib/locale";
 import type { ChatTurnResult, ImageCandidate } from "@/lib/ai";
 import {
@@ -34,7 +36,12 @@ import {
   type ChatFanProfile,
 } from "@/lib/chat-prompt";
 import { isCannedShortcutChoices } from "@/lib/thread";
-import { fanShortcutChoices, clipModelHistory, sanitizeIdolReply, userWantsPhoto } from "@/lib/chat-reply";
+import {
+  fanShortcutChoices,
+  clipModelHistory,
+  sanitizeIdolReply,
+  userWantsPhoto,
+} from "@/lib/chat-reply";
 import {
   assistantTextContent,
   chatPhotoTools,
@@ -43,6 +50,14 @@ import {
 } from "@/lib/chat-tools";
 
 type HistoryMsg = { role: "user" | "assistant"; content: string };
+
+async function chatBackend(scope: string) {
+  const backend = await resolveUserAiBackend();
+  if (!backend) return undefined;
+  const user = await getSessionUser();
+  if (user) backend.promptCacheKey = chatPromptCacheKey(user.id, scope);
+  return backend;
+}
 
 function buildSystemPrompt(
   name: string,
@@ -59,8 +74,6 @@ function buildSystemPrompt(
 ) {
   return [
     ...chatIdolLines({ name, personality, look, bio, voice, website, twitter }),
-    ...chatFanLines(fan),
-    `Current scene "${chapterTitle}": ${theme}. Stay in that scene.`,
     THREAD_LANGUAGE_POLICY,
     "This is an 18+ erotic dating-sim. Flirting, dirty talk, and explicit sexual roleplay are allowed and expected when the fan goes there. Follow their lead and intensity. Stay in character as a consenting adult.",
     "Never mention you are an AI or a language model. Never break character. Never involve minors.",
@@ -68,6 +81,9 @@ function buildSystemPrompt(
     "This chat is the only channel. Never say you sent a photo on WeChat, iMessage, SMS, email, or any other app. Never tell them to check WeChat.",
     ...chatToolPolicy(withTools),
     "Do not suggest what the fan should say next. Do not include choices, options, or tap-to-send drafts.",
+    // Keep the idol and policy prefix stable when fan/scene details change.
+    ...chatFanLines(fan),
+    `Current scene "${chapterTitle}": ${theme}. Stay in that scene.`,
   ].join("\n");
 }
 
@@ -75,14 +91,7 @@ async function ttsBase64(backend: MiniMaxBackend, text: string, voiceId: string)
   const clipped = text.slice(0, 280);
   const language = hasHan(clipped) ? "zh" : "en";
   const req = ttsRequest(backend, clipped, voiceId, language);
-  const res = await fetch(req.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${backend.apiKey}`,
-    },
-    body: JSON.stringify(req.body),
-  });
+  const res = await postAiRequest(backend, req);
   if (!res.ok) return undefined;
   return decodeTtsAudio(await res.json());
 }
@@ -109,7 +118,7 @@ export async function completeTurn(input: {
   const userText = lastUser?.content ?? "";
   if (!userText.trim()) return { ok: false, error: "Empty message" };
 
-  const backend = resolveAiBackend();
+  const backend = await chatBackend(`idol:${input.tokenId}:reply`);
   if (!backend) return { ok: false, error: "ai_not_configured" };
 
   const history = clipModelHistory(input.messages);
@@ -148,36 +157,48 @@ export async function completeTurn(input: {
   ];
 
   const completionMs = input.completionTimeoutMs ?? CHAT_COMPLETION_TIMEOUT_MS;
+  const voiceEnabled = Boolean(idolVoiceId(idol));
+  const generationEnabled = Boolean(idolLook(idol).trim());
+  const availableTools = chatPhotoTools(unseen, { voiceEnabled, generationEnabled });
   const postTurn = (withTools: boolean) =>
     postChatCompletions(
       backend,
       {
         temperature: 0.95,
         max_tokens: 400,
-        messages: turnMessages(withTools),
-        ...(withTools ? { tools: chatPhotoTools(unseen) } : {}),
+        messages: turnMessages(withTools && availableTools.length > 0),
+        ...(withTools && availableTools.length ? { tools: availableTools } : {}),
       },
       { signal: chatCompletionTimeoutSignal(completionMs) },
     );
 
-  const timedOut = (err: unknown) =>
-    Boolean(
-      err &&
-        typeof err === "object" &&
-        "name" in err &&
-        (err.name === "TimeoutError" || err.name === "AbortError"),
+  const timedOut = (err: unknown) => {
+    const name =
+      err && typeof err === "object" && "name" in err
+        ? String((err as { name: unknown }).name)
+        : "";
+    return (
+      name === "TimeoutError" ||
+      name === "AbortError" ||
+      name === "RequestAbortedError" ||
+      name === "RequestTimeoutError"
     );
+  };
 
-  const readMessage = async (
-    res: Response,
-  ): Promise<{ message: unknown } | { error: string }> => {
+  const readMessage = async (res: Response): Promise<{ message: unknown } | { error: string }> => {
     const text = await res.text().catch(() => "");
-    let body: { choices?: { message?: unknown }[]; error?: { message?: unknown }; base_resp?: { status_msg?: unknown } } = {};
+    let body: {
+      choices?: { message?: unknown }[];
+      error?: { message?: unknown };
+      base_resp?: { status_msg?: unknown };
+    } = {};
     try {
       body = text ? (JSON.parse(text) as typeof body) : {};
     } catch {
       if (!res.ok) {
-        return { error: `${backend.kind} ${res.status}: ${text.replace(/\s+/g, " ").slice(0, 140)}` };
+        return {
+          error: `${backend.kind} ${res.status}: ${text.replace(/\s+/g, " ").slice(0, 140)}`,
+        };
       }
       return { error: `${backend.kind} ${res.status}: invalid json` };
     }
@@ -203,7 +224,7 @@ export async function completeTurn(input: {
       lastError = err instanceof Error ? err.message.slice(0, 160) : "tools request failed";
       if (timedOut(err)) return { ok: false, error: "ai_timeout" };
     }
-    if (!message) {
+    if (!message && backend.kind !== "x402") {
       try {
         const second = await readMessage(await postTurn(false));
         if ("message" in second) message = second.message;
@@ -224,7 +245,7 @@ export async function completeTurn(input: {
 
     let audioBase64: string | undefined;
     if (input.speak && idolVoiceId(idol)) {
-      const voiceBackend = resolveMiniMaxBackend();
+      const voiceBackend = backend;
       if (voiceBackend) audioBase64 = await ttsBase64(voiceBackend, reply, idolVoiceId(idol));
     }
 
@@ -235,10 +256,10 @@ export async function completeTurn(input: {
       imageId,
       audioBase64,
       sendPhoto: Boolean(imageId) || tools.sendPhoto || userWantsPhoto(userText),
-      expandLibrary: tools.expandLibrary,
+      expandLibrary: generationEnabled && tools.expandLibrary,
       photoPrompt: tools.photoPrompt,
       photoTags: tools.photoTags,
-      sendVoice: tools.sendVoice,
+      sendVoice: voiceEnabled && tools.sendVoice,
       voiceText: tools.voiceText,
     };
   } catch (err) {
@@ -257,7 +278,7 @@ export async function suggestChoices(input: {
   const idol = await loadIdolByTokenId(input.tokenId);
   if (!idol) return [];
   const chapter = sceneAt(idol, input.chapter);
-  const backend = resolveAiBackend();
+  const backend = await chatBackend(`idol:${input.tokenId}:choices`);
   if (!Object.keys(chapter ?? {}).length || !backend) return [];
 
   const history = input.messages
@@ -290,12 +311,14 @@ export async function suggestChoices(input: {
                 "Never write as the idol. Return only the message: no JSON, list, label, quotation marks, or explanation.",
                 CHIP_LANGUAGE_POLICY,
                 input.lastChoices?.length ? `Do not reuse: ${input.lastChoices.join(" / ")}` : "",
-              ].filter(Boolean).join("\n"),
+              ]
+                .filter(Boolean)
+                .join("\n"),
             },
             { role: "user", content: history ? `CHAT:\n${history}` : "Write a FAN opening text." },
           ],
         },
-        { signal: chatCompletionTimeoutSignal() },
+        { signal: chatCompletionTimeoutSignal(), purpose: "choices" },
       );
       if (!res.ok) return "";
       const body = (await res.json()) as { choices?: { message?: unknown }[] };
@@ -323,7 +346,7 @@ export async function localizeOpeningTexts(input: {
   const opening = input.opening.trim();
   const welcome = input.welcome?.trim() || "";
   if (!opening && !welcome) return null;
-  const backend = resolveAiBackend();
+  const backend = await chatBackend(`opening:${input.idolName}:${input.locale}`);
   if (!backend) return null;
   const target = localePromptName(input.locale);
 
@@ -348,7 +371,7 @@ export async function localizeOpeningTexts(input: {
           { role: "user", content: text },
         ],
       },
-      { signal: chatCompletionTimeoutSignal() },
+      { signal: chatCompletionTimeoutSignal(), purpose: "opening" },
     );
     if (!res.ok) return "";
     const body = (await res.json()) as { choices?: { message?: unknown }[] };

@@ -1,0 +1,101 @@
+/** Read-only ABI for the superseded collection migration. Never import into runtime. */
+export const LEGACY_IDOL_ABI = [
+  {
+    type: "function",
+    name: "agentOf",
+    stateMutability: "view",
+    inputs: [{ name: "ownerAddress", type: "address" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "agent", type: "address" },
+          { name: "role", type: "uint8" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "nextTokenId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "idolOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "bio", type: "string" },
+          { name: "personality", type: "string" },
+          { name: "look", type: "string" },
+          { name: "voice", type: "string" },
+          { name: "website", type: "string" },
+          { name: "twitter", type: "string" },
+          { name: "scenes", type: "string" },
+          { name: "subscribePriceUsdc", type: "uint256" },
+          { name: "imageUnlockPriceUsdc", type: "uint256" },
+          { name: "isPublic", type: "bool" },
+          { name: "subscriberCount", type: "uint256" },
+          { name: "receiptsUsdc", type: "uint256" },
+          { name: "salePriceUsdc", type: "uint256" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "welcomeOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "string" }],
+  },
+  {
+    type: "function",
+    name: "publicOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "listedOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "tokenURI",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "string" }],
+  },
+  {
+    type: "function",
+    name: "salePriceUsdcOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "mintsOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "ownerOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+] as const;

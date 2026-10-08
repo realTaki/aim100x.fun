@@ -7,11 +7,7 @@ import { ProfilePoolPickerSheet } from "@/components/profile-pool-picker-sheet";
 import { fetchCoverAlbum, type CoverAlbumItem } from "@/lib/cover-album";
 import { isActionGlyphBusy } from "@/lib/action-glyph";
 import { useActionGlyph } from "@/lib/use-action-glyph";
-import {
-  addCoversFromPool,
-  deleteAlbumPages,
-  uploadProfileSlot,
-} from "@/lib/profile-album-client";
+import { addCoversFromPool, deleteAlbumPages, uploadProfileSlot } from "@/lib/profile-album-client";
 import { cn } from "@/lib/utils";
 
 export function ManagerCoverAlbum({
@@ -75,13 +71,13 @@ export function ManagerCoverAlbum({
             }}
             className="text-sm text-muted"
           >
-            取消
+            Cancel
           </button>
           <ActionGlyphButton
             status={deleteAction.status}
             disabled={selected.size === 0}
-            idleLabel="删除"
-            pendingLabel="删除中…"
+            idleLabel="Delete"
+            pendingLabel="Deleting…"
             onClick={() =>
               void deleteAction.run(async () => {
                 await deleteAlbumPages(tokenId, [...selected], "cover");
@@ -93,7 +89,7 @@ export function ManagerCoverAlbum({
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-red-500/40 px-3 text-sm text-red-300 disabled:opacity-50"
           >
             <Trash2 className="size-4" />
-            删除
+            Delete
           </ActionGlyphButton>
         </div>
       ) : null}
@@ -107,7 +103,7 @@ export function ManagerCoverAlbum({
           <button
             type="button"
             disabled={busy || selectMode}
-            aria-label="从本地上传"
+            aria-label="Upload from device"
             onClick={() => uploadRef.current?.click()}
             className="flex min-h-0 flex-1 items-center justify-center"
           >
@@ -117,7 +113,7 @@ export function ManagerCoverAlbum({
           <button
             type="button"
             disabled={busy || selectMode}
-            aria-label="从图库添加"
+            aria-label="Add from library"
             onClick={() => setGalleryOpen(true)}
             className="flex min-h-0 flex-1 items-center justify-center"
           >
@@ -178,7 +174,10 @@ export function ManagerCoverAlbum({
         tokenId={tokenId}
         multiple
         onPickMany={async (picked) => {
-          await addCoversFromPool(tokenId, picked.map((p) => p.pageId));
+          await addCoversFromPool(
+            tokenId,
+            picked.map((p) => p.pageId),
+          );
           await refresh();
         }}
       />

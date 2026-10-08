@@ -12,6 +12,7 @@ import {
 import { identiconSeedFromUser } from "./wallet-address";
 import { passkeyRecordForAddress } from "@/lib/auth/passkey-record";
 import { localChatUserId, localChatUserIdLookupKeys } from "@/lib/chat-store/user-key";
+import { readPreferredLocale, writePreferredLocale } from "@/lib/locale";
 
 function shallowEqual(a: StoredUserProfile, b: StoredUserProfile): boolean {
   return (
@@ -41,6 +42,7 @@ export function useUserProfile(user: AppUser | null) {
         fresh = seeded;
       }
     }
+    fresh = { ...fresh, locale: readPreferredLocale(fresh.locale) };
     if (cacheRef.current.key === storeKey && shallowEqual(cacheRef.current.value, fresh)) {
       return cacheRef.current.value;
     }
@@ -48,11 +50,7 @@ export function useUserProfile(user: AppUser | null) {
     return fresh;
   }, [storeKey, user]);
 
-  const profile = useSyncExternalStore(
-    subscribeUserProfile,
-    getSnapshot,
-    () => EMPTY_USER_PROFILE,
-  );
+  const profile = useSyncExternalStore(subscribeUserProfile, getSnapshot, () => EMPTY_USER_PROFILE);
 
   const defaultAvatarUrl = useMemo(
     () => (user ? identiconDataUrl(identiconSeedFromUser(user)) : null),
@@ -62,13 +60,21 @@ export function useUserProfile(user: AppUser | null) {
   const avatarUrl = profile.customAvatar ?? defaultAvatarUrl;
 
   const save = useCallback(
-    (next: StoredUserProfile): boolean => {
+    (next: StoredUserProfile, languageSelected = false): boolean => {
       if (!storeKey) return false;
-      const ok = writeUserProfile(storeKey, next);
+      const stored = user
+        ? readUserProfileAlongKeys(localChatUserIdLookupKeys(user)).profile
+        : EMPTY_USER_PROFILE;
+      // Saving a bio/avatar must not turn the browser default into a fixed preference.
+      if (languageSelected) writePreferredLocale(next.locale);
+      const ok = writeUserProfile(storeKey, {
+        ...next,
+        locale: languageSelected ? next.locale : stored.locale,
+      });
       if (ok) cacheRef.current = { key: storeKey, value: next };
       return ok;
     },
-    [storeKey],
+    [storeKey, user],
   );
 
   return { profile, avatarUrl, defaultAvatarUrl, save };

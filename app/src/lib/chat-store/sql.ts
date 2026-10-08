@@ -106,6 +106,9 @@ function rowToMsg(row: Record<string, unknown>): ChatMsg {
     content: asString(row.content),
     chapter: asNumber(row.chapter),
     imageUrl: asString(row.image_url) || undefined,
+    imageId: asString(row.image_id) || undefined,
+    imagePaymentIntent: asString(row.image_payment_intent) || undefined,
+    imagePaymentAmount: asString(row.image_payment_amount) || undefined,
     imagePending: asNumber(row.image_pending) ? true : undefined,
     voicePending: asNumber(row.voice_pending) ? true : undefined,
     audioUrl: asString(row.audio_url) || undefined,
@@ -137,6 +140,13 @@ function clearFtsForThread(db: ChatDb, userId: string, tokenKey: string) {
 
 export function applySchema(sql: ChatSql): ChatDb {
   sql.exec(TABLES);
+  for (const column of ["image_id", "image_payment_intent", "image_payment_amount"]) {
+    try {
+      sql.exec(`ALTER TABLE chat_messages ADD COLUMN ${column} TEXT`);
+    } catch {
+      /* already migrated */
+    }
+  }
   let fts = false;
   try {
     sql.exec(FTS);
@@ -150,9 +160,7 @@ export function applySchema(sql: ChatSql): ChatDb {
     /* column exists */
   }
   try {
-    sql.exec(
-      `ALTER TABLE chat_messages ADD COLUMN image_nsfw_unlocked INTEGER NOT NULL DEFAULT 0`,
-    );
+    sql.exec(`ALTER TABLE chat_messages ADD COLUMN image_nsfw_unlocked INTEGER NOT NULL DEFAULT 0`);
   } catch {
     /* column exists */
   }
@@ -205,11 +213,7 @@ export function applySchema(sql: ChatSql): ChatDb {
 }
 
 /** Empty OPFS / no rows is `null`, not an error. */
-export function getThreadFromDb(
-  db: ChatSql,
-  userId: string,
-  tokenKey: string,
-): ChatThread | null {
+export function getThreadFromDb(db: ChatSql, userId: string, tokenKey: string): ChatThread | null {
   let metaRow: Record<string, unknown> | undefined;
   let rows: Record<string, unknown>[] = [];
   try {
@@ -219,7 +223,7 @@ export function getThreadFromDb(
       [userId, tokenKey],
     )[0];
     rows = db.all(
-      `SELECT id, role, content, chapter, image_url, image_pending, voice_pending, audio_url, image_content_rating, image_nsfw_unlocked, error FROM chat_messages
+      `SELECT id, role, content, chapter, image_url, image_id, image_payment_intent, image_payment_amount, image_pending, voice_pending, audio_url, image_content_rating, image_nsfw_unlocked, error FROM chat_messages
        WHERE user_id = ? AND token_id = ?
        ORDER BY ord ASC`,
       [userId, tokenKey],
@@ -302,17 +306,11 @@ function upsertThreadMeta(
   );
 }
 
-function insertMessage(
-  db: ChatDb,
-  userId: string,
-  tokenKey: string,
-  msg: ChatMsg,
-  ord: number,
-) {
+function insertMessage(db: ChatDb, userId: string, tokenKey: string, msg: ChatMsg, ord: number) {
   db.run(
     `INSERT INTO chat_messages
-     (id, user_id, token_id, role, content, chapter, ord, image_url, image_pending, voice_pending, audio_url, image_content_rating, image_nsfw_unlocked, error)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, user_id, token_id, role, content, chapter, ord, image_url, image_id, image_payment_intent, image_payment_amount, image_pending, voice_pending, audio_url, image_content_rating, image_nsfw_unlocked, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       msg.id,
       userId,
@@ -322,6 +320,9 @@ function insertMessage(
       msg.chapter,
       ord,
       msg.imageUrl ?? null,
+      msg.imageId ?? null,
+      msg.imagePaymentIntent ?? null,
+      msg.imagePaymentAmount ?? null,
       msg.imagePending ? 1 : 0,
       msg.voicePending ? 1 : 0,
       msg.audioUrl ?? null,
@@ -333,12 +334,7 @@ function insertMessage(
   indexMessage(db, userId, tokenKey, msg);
 }
 
-export function setThreadFull(
-  db: ChatDb,
-  userId: string,
-  tokenKey: string,
-  thread: ChatThread,
-) {
+export function setThreadFull(db: ChatDb, userId: string, tokenKey: string, thread: ChatThread) {
   const existing = getThreadFromDb(db, userId, tokenKey);
   if (threadGeneration(existing) > threadGeneration(thread)) return;
   db.exec("BEGIN");
@@ -417,12 +413,7 @@ export function appendMessages(
   }
 }
 
-export function ftsSearch(
-  db: ChatDb,
-  userId: string,
-  tokenKey: string,
-  query: string,
-): string[] {
+export function ftsSearch(db: ChatDb, userId: string, tokenKey: string, query: string): string[] {
   if (!db.fts) return [];
   const term = query.trim();
   if (!term) return [];

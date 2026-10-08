@@ -17,6 +17,7 @@ export async function isFanForWallet(wallet: string, tokenId: number): Promise<b
 export async function isFanMembershipActive(
   userId: string,
   tokenId: number,
+  _bearerToken?: string,
 ): Promise<boolean> {
   if (userId === DEV_USER_ID) return true;
   const wallet = walletAddressFromUserId(userId);

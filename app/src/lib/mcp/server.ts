@@ -33,7 +33,7 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
       const account = await client.account();
       const idols = await client.listManageableIdols();
       return response({
-        chainId: 10143,
+        chainId: 46630,
         idols100x: session.idols100x,
         agentAccount: account.address,
         deployed: account.deployed,
@@ -59,7 +59,8 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
   server.registerTool(
     "get_idol",
     {
-      description: "Read one idol's on-chain fields, prices, owner, and this Agent Account's role.",
+      description:
+        "Read authorized private idol configuration, on-chain prices, owner, and this Agent Account's role.",
       inputSchema: z.object({ tokenId: z.number().int().positive() }),
     },
     async ({ tokenId }) =>
@@ -73,7 +74,7 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
     "update_idol_content",
     {
       description:
-        "Update selected content fields while preserving all unspecified on-chain fields. Requires Content or Full authorization.",
+        "Update selected content fields while preserving all unspecified private Neon fields. Requires Content or Full authorization.",
       inputSchema: z
         .object({
           tokenId: z.number().int().positive(),
@@ -88,11 +89,12 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
           scenes: z.string().optional().describe("A JSON array encoded as a string"),
         })
         .refine(
-          ({ tokenId: _tokenId, ...fields }) => Object.values(fields).some((value) => value !== undefined),
+          ({ tokenId: _tokenId, ...fields }) =>
+            Object.values(fields).some((value) => value !== undefined),
           { message: "Provide at least one content field" },
         ),
     },
-    async ({ tokenId, ...patch }) => transaction(await client.updateContent(tokenId, patch)),
+    async ({ tokenId, ...patch }) => response(await client.updateContent(tokenId, patch)),
   );
 
   server.registerTool(
@@ -124,19 +126,21 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
   server.registerTool(
     "set_idol_public",
     {
-      description: "Show or hide an idol on the public plaza. Requires Content or Full authorization.",
+      description:
+        "Show or hide an idol on the public plaza. Requires Content or Full authorization.",
       inputSchema: z.object({
         tokenId: z.number().int().positive(),
         isPublic: z.boolean(),
       }),
     },
-    async ({ tokenId, isPublic }) => transaction(await client.setPublic(tokenId, isPublic)),
+    async ({ tokenId, isPublic }) => response(await client.setPublic(tokenId, isPublic)),
   );
 
   server.registerTool(
     "set_idol_sale_price",
     {
-      description: 'Set an idol sale price in human-readable LUSD. Use "0" to take it off sale. Requires Full authorization.',
+      description:
+        'Set an idol sale price in human-readable LUSD. Use "0" to take it off sale. Requires Full authorization.',
       inputSchema: z.object({
         tokenId: z.number().int().positive(),
         priceUsdc: z.string().describe('Example: "20"; at most 6 decimal places'),

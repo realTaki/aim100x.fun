@@ -1,322 +1,210 @@
-import {
-  gateIdentityFromHeaders,
-  gateIdentityUserInfo,
-} from "./gate-identity.server";
-import { GATE_SESSION_MARKER_COOKIE } from "./gate-session-marker";
+import { randomBytes } from "node:crypto";
+import { SignJWT, jwtVerify } from "jose";
+import { createPublicClient, erc20Abi, getAddress, http, type Address, type Hex } from "viem";
+import { createSiweMessage, parseSiweMessage } from "viem/siwe";
+import { deriveAppWallet, sessionSigningKey } from "./app-wallet.server.ts";
+import { ensureAppWalletDelegation } from "./app-wallet-executor.server.ts";
+import { mainnetWalletChain, MONAD_USDC } from "./app-wallet-chain.ts";
 import {
   authConfigured,
   expireSessionCookieHeader,
-  mintPasskeySessionToken,
-  mintGateSessionToken,
+  mintWalletSessionToken,
   SESSION_TOKEN_COOKIE,
   sessionCookieHeader,
   verifySessionToken,
-} from "./wallet-auth.server";
-import { IDOLS100X_CHAIN_ID, IDOLS100X_RPC_URL } from "@/lib/idols100x";
-import {
-  mintPasskeyChallenge,
-  passkeyRpFromRequest,
-  resolvePasskeyPub,
-  verifyPasskeyAssertionIssue,
-  verifyPasskeyChallengeToken,
-  inspectClientDataIssue,
-  type PasskeyVerifyBody,
-} from "./passkey-verify.server";
-import {
-  ENTRY_POINT_V06,
-  PASSKEY_ACCOUNT_ABI,
-  PASSKEY_ACCOUNT_FACTORY,
-  PASSKEY_FACTORY_ABI,
-  PIMLICO_BUNDLER_URL,
-} from "./passkey-aa";
-import { b64urlToBytes, bytesToB64url, bytesToHex } from "./passkey-webauthn";
-import { createPublicClient, http, keccak256, type Address } from "viem";
+} from "./wallet-auth.server.ts";
 
-const RPC_URLS = [IDOLS100X_RPC_URL, PIMLICO_BUNDLER_URL];
-
-function rpcClient(url: string) {
-  return createPublicClient({
-    transport: http(url, { timeout: 8_000 }),
-  });
+const CHALLENGE_COOKIE = "__Host-aim-wallet.challenge";
+const STATEMENT =
+  "Sign in to aim100x.fun. Your external wallet owns NFTs and signs product payments. The app creates a separate server-managed API wallet. Fund it with Monad USDC for automatic API payments (maximum 0.10 USDC per API call).";
+function json(body: unknown, status = 200, cookies: string[] = []) {
+  const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "no-store" });
+  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
+  return new Response(JSON.stringify(body), { status, headers });
 }
-
-const publicClient = rpcClient(IDOLS100X_RPC_URL);
-
-function hexPad(value: bigint): `0x${string}` {
-  return `0x${value.toString(16).padStart(64, "0")}`;
+function cookie(request: Request, name: string): string | null {
+  const value = request.headers
+    .get("cookie")
+    ?.split(";")
+    .map((v) => v.trim())
+    .find((v) => v.startsWith(`${name}=`));
+  return value ? value.slice(name.length + 1) : null;
 }
-
-async function factoryAddress(x: bigint, y: bigint): Promise<Address> {
-  let last: unknown;
-  for (const url of RPC_URLS) {
-    try {
-      return await rpcClient(url).readContract({
-        address: PASSKEY_ACCOUNT_FACTORY,
-        abi: PASSKEY_FACTORY_ABI,
-        functionName: "getAddress",
-        args: [x, y],
-      });
-    } catch (err) {
-      last = err;
-    }
-  }
-  throw last instanceof Error ? last : new Error("wallet_rpc");
-}
-
-function json(body: Record<string, unknown>, init: ResponseInit = {}) {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-}
-
-function readBearer(request: Request): string | null {
-  const header = request.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-  const token = header.slice("Bearer ".length).trim();
-  return token || null;
-}
-
-function readSessionTokenFromRequest(request: Request): string | null {
-  return readBearer(request) ?? readCookie(request, SESSION_TOKEN_COOKIE);
-}
-
-function readCookie(request: Request, name: string): string | null {
-  const raw = request.headers.get("cookie");
-  if (!raw) return null;
-  for (const part of raw.split(";")) {
-    const trimmed = part.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return decodeURIComponent(trimmed.slice(name.length + 1));
-    }
-  }
-  return null;
-}
-
-function gateMarkerSetHeader(): string {
-  return `${GATE_SESSION_MARKER_COOKIE}=1; Path=/; Secure; SameSite=Lax; Max-Age=604800`;
-}
-
-function gateMarkerClearHeader(): string {
-  return `${GATE_SESSION_MARKER_COOKIE}=; Path=/; Secure; SameSite=Lax; Max-Age=0`;
-}
-
-async function lookupByCredential(credentialId: Uint8Array): Promise<{
-  address: Address;
-  x: bigint;
-  y: bigint;
-} | null> {
-  const account = await publicClient.readContract({
-    address: PASSKEY_ACCOUNT_FACTORY,
-    abi: PASSKEY_FACTORY_ABI,
-    functionName: "accountOfCredential",
-    args: [keccak256(bytesToHex(credentialId))],
-  });
-  if (account === "0x0000000000000000000000000000000000000000") return null;
-  const [x, y] = await Promise.all([
-    publicClient.readContract({
-      address: account,
-      abi: PASSKEY_ACCOUNT_ABI,
-      functionName: "pubkeyX",
-    }),
-    publicClient.readContract({
-      address: account,
-      abi: PASSKEY_ACCOUNT_ABI,
-      functionName: "pubkeyY",
-    }),
-  ]);
-  return { address: account, x, y };
-}
-
-async function handleGetSession(request: Request): Promise<Response> {
-  if (!authConfigured) {
-    return json({ session: null, user: null });
-  }
-
-  const headers = new Headers();
-  let token = readSessionTokenFromRequest(request);
-  let user = token ? await verifySessionToken(token) : null;
-
-  const gateIdentity = await gateIdentityFromHeaders(request.headers);
-  if (gateIdentity) {
-    const info = gateIdentityUserInfo(gateIdentity);
-    const bound = user && (user.isGate ? user.id === info.id : false);
-    if (!bound) {
-      token = await mintGateSessionToken(info.id, info.name, info.email);
-      user = await verifySessionToken(token);
-      headers.append("Set-Cookie", sessionCookieHeader(token));
-      headers.append("Set-Cookie", gateMarkerSetHeader());
-    }
-  } else if (user?.isGate) {
-    token = null;
-    user = null;
-    headers.append("Set-Cookie", expireSessionCookieHeader());
-    headers.append("Set-Cookie", gateMarkerClearHeader());
-  } else if (user && user.embedded) {
-    headers.append("Set-Cookie", gateMarkerClearHeader());
-  }
-
-  if (!user) {
-    return json({ session: null, user: null }, { headers });
-  }
-
-  return json(
-    {
-      session: { token: token ?? undefined },
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: null,
-        embedded: user.embedded,
-        passkey: user.embedded
-          ? {
-              x: user.passkeyX,
-              y: user.passkeyY,
-              credentialId: user.passkeyCredentialId,
-            }
-          : null,
-      },
-    },
-    { headers },
+const challengeCookie = (token: string, maxAge = 300) =>
+  `${CHALLENGE_COOKIE}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`;
+export function isSameOriginWalletRequest(request: Request) {
+  const origin = request.headers.get("origin");
+  const site = request.headers.get("sec-fetch-site");
+  return (
+    (!site || site === "same-origin" || site === "none") &&
+    (!origin || origin === new URL(request.url).origin)
   );
 }
-
-async function handlePasskeyChallenge(): Promise<Response> {
-  const minted = mintPasskeyChallenge();
-  return json(minted);
+export async function sessionUserFromRequest(request: Request) {
+  // Login sessions are cookie-only: never accept the old client-held bearer JWTs.
+  const token = cookie(request, SESSION_TOKEN_COOKIE);
+  return token ? verifySessionToken(token) : null;
 }
-
-async function handlePasskeyVerify(request: Request): Promise<Response> {
-  let body: PasskeyVerifyBody & { x?: string; y?: string };
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return json({ error: "Invalid JSON" }, { status: 400 });
-  }
-  if (!body.nonceToken || !body.challenge || !verifyPasskeyChallengeToken(body.nonceToken, body.challenge)) {
-    return json({ error: "Unauthorized", reason: "challenge" }, { status: 401 });
-  }
-  const { origin } = passkeyRpFromRequest(request);
-  const mode = body.mode === "get" ? "get" : "create";
-  let x: bigint;
-  let y: bigint;
-  let credentialId: Uint8Array;
-
-  if (mode === "create") {
-    if (!body.clientDataJSON) return json({ error: "Unauthorized", reason: "client" }, { status: 401 });
-    const clientDataJSON = Buffer.from(b64urlToBytes(body.clientDataJSON)).toString("utf8");
-    const clientIssue = inspectClientDataIssue(clientDataJSON, body.challenge, origin, "webauthn.create");
-    if (clientIssue) return json({ error: "Unauthorized", reason: clientIssue }, { status: 401 });
-    const resolved = resolvePasskeyPub(body);
-    if (!resolved) return json({ error: "Unauthorized", reason: "pubkey" }, { status: 401 });
-    x = resolved.x;
-    y = resolved.y;
-    credentialId = resolved.credentialId;
-  } else {
-    if (body.x && body.y && body.credentialId) {
-      x = BigInt(body.x);
-      y = BigInt(body.y);
-      credentialId = b64urlToBytes(body.credentialId);
-      const issue = verifyPasskeyAssertionIssue({ body, origin, challenge: body.challenge, x, y });
-      if (issue) return json({ error: "Unauthorized", reason: issue }, { status: 401 });
-    } else if (body.credentialId) {
-      credentialId = b64urlToBytes(body.credentialId);
-      let found: { address: Address; x: bigint; y: bigint } | null;
-      try {
-        found = await lookupByCredential(credentialId);
-      } catch {
-        return json({ error: "wallet_rpc" }, { status: 503 });
-      }
-      if (!found) return json({ error: "unknown_passkey" }, { status: 401 });
-      x = found.x;
-      y = found.y;
-      const issue = verifyPasskeyAssertionIssue({ body, origin, challenge: body.challenge, x, y });
-      if (issue) return json({ error: "Unauthorized", reason: issue }, { status: 401 });
-    } else {
-      return json({ error: "unknown_passkey" }, { status: 401 });
-    }
-  }
-
-  let wallet: Address;
-  try {
-    wallet = await factoryAddress(x, y);
-  } catch {
-    return json({ error: "wallet_rpc" }, { status: 503 });
-  }
-  const token = await mintPasskeySessionToken({
-    wallet,
-    chainId: IDOLS100X_CHAIN_ID,
-    x: hexPad(x),
-    y: hexPad(y),
-    credentialId: bytesToB64url(credentialId),
-  });
-  const headers = new Headers();
-  headers.append("Set-Cookie", sessionCookieHeader(token));
-  headers.append("Set-Cookie", gateMarkerClearHeader());
-  return json(
-    {
-      token,
-      address: wallet,
-      x: hexPad(x),
-      y: hexPad(y),
-      credentialId: bytesToB64url(credentialId),
-      entryPoint: ENTRY_POINT_V06,
-    },
-    { headers },
-  );
+async function initialize(loginAddress: Address) {
+  const owner = deriveAppWallet(loginAddress).account;
+  // Only the API wallet is delegated. The external NFT wallet is never delegated.
+  await ensureAppWalletDelegation(owner, mainnetWalletChain);
+  return owner.address;
 }
-
-export async function handleWalletAuthRequest(request: Request): Promise<Response> {
-  const url = new URL(request.url);
-  const subpath = url.pathname.replace(/^\/api\/auth\/?/, "");
-  const method = request.method.toUpperCase();
-
-  if (subpath === "get-session" && method === "GET") {
-    return handleGetSession(request);
-  }
-
-  if (!authConfigured) {
-    return json({ error: "Auth disabled" }, { status: 404 });
-  }
-
-  if (subpath === "passkey/challenge" && method === "POST") {
-    return handlePasskeyChallenge();
-  }
-
-  if (subpath === "passkey/verify" && method === "POST") {
-    return handlePasskeyVerify(request);
-  }
-
-  if (subpath === "sign-out" && method === "POST") {
-    const headers = new Headers();
-    headers.append("Set-Cookie", expireSessionCookieHeader());
-    headers.append("Set-Cookie", gateMarkerClearHeader());
-    return json({ success: true }, { headers });
-  }
-
-  return json({ error: "Not found" }, { status: 404 });
-}
-
-export async function sessionUserFromRequest(
+export async function handleWalletAuthRequest(
   request: Request,
-): Promise<{
-  id: string;
-  email: string | null;
-  walletAddress: `0x${string}` | null;
-  embedded: boolean;
-} | null> {
-  const token = readSessionTokenFromRequest(request);
-  if (!token) return null;
-  const user = await verifySessionToken(token);
-  if (!user) return null;
-  return {
-    id: user.id,
-    email: user.email,
-    walletAddress: user.walletAddress,
-    embedded: user.embedded,
-  };
+  deps: {
+    initialize?: typeof initialize;
+    verifySignature?: (
+      message: string,
+      signature: Hex,
+      address: Address,
+      domain: string,
+    ) => Promise<boolean>;
+  } = {},
+): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/^\/api\/auth\/?/, "");
+  if (!isSameOriginWalletRequest(request))
+    return json({ error: "Cross-origin request blocked" }, 403);
+  if (request.method === "POST" && request.headers.get("origin") !== url.origin)
+    return json({ error: "Same-origin request required" }, 403);
+  try {
+    if (path === "sign-out" && request.method === "POST")
+      return json({ success: true }, 200, [
+        expireSessionCookieHeader(),
+        challengeCookie("", 0),
+        "__Host-grok-auth.session_token=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0",
+      ]);
+    if (!authConfigured) return json({ error: "Wallet login is disabled" }, 503);
+    if (path === "wallet/challenge" && request.method === "POST") {
+      const body = await request.json();
+      if (typeof body.address !== "string" || !/^0x[a-f0-9]{40}$/i.test(body.address))
+        return json({ error: "Invalid login address" }, 400);
+      const address = getAddress(body.address.toLowerCase());
+      const nonce = randomBytes(16).toString("hex");
+      const issuedAt = new Date();
+      const message = createSiweMessage({
+        address,
+        chainId: 143,
+        domain: url.host,
+        uri: url.origin,
+        version: "1",
+        nonce,
+        statement: STATEMENT,
+        issuedAt,
+        expirationTime: new Date(issuedAt.getTime() + 300_000),
+      });
+      const token = await new SignJWT({ message })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuer("aim100x.fun/login-challenge/v1")
+        .setAudience(url.origin)
+        .setIssuedAt()
+        .setExpirationTime("5m")
+        .sign(sessionSigningKey());
+      return json({ message }, 200, [challengeCookie(token)]);
+    }
+    if (path === "wallet/verify" && request.method === "POST") {
+      const body = await request.json();
+      const token = cookie(request, CHALLENGE_COOKIE);
+      if (
+        !token ||
+        typeof body.message !== "string" ||
+        typeof body.signature !== "string" ||
+        body.signature.length > 8192
+      )
+        return json({ error: "Invalid login challenge" }, 401);
+      let message: string;
+      try {
+        const { payload } = await jwtVerify(token, sessionSigningKey(), {
+          algorithms: ["HS256"],
+          issuer: "aim100x.fun/login-challenge/v1",
+          audience: url.origin,
+          requiredClaims: ["exp"],
+        });
+        if (typeof payload.message !== "string" || payload.message !== body.message)
+          throw new Error();
+        message = payload.message;
+      } catch {
+        return json({ error: "Login challenge expired or changed" }, 401);
+      }
+      const parsed = parseSiweMessage(message);
+      if (
+        !parsed.address ||
+        parsed.domain !== url.host ||
+        parsed.uri !== url.origin ||
+        parsed.chainId !== 143
+      )
+        return json({ error: "Invalid login identity" }, 401);
+      const reader = createPublicClient({
+        chain: mainnetWalletChain,
+        transport: http(mainnetWalletChain.rpcUrls.default.http[0]),
+      });
+      const valid = deps.verifySignature
+        ? await deps.verifySignature(message, body.signature as Hex, parsed.address, url.host)
+        : await reader.verifySiweMessage({
+            message,
+            signature: body.signature as Hex,
+            address: parsed.address,
+            domain: url.host,
+          });
+      if (!valid) return json({ error: "Wallet signature rejected" }, 401);
+      const address = await (deps.initialize ?? initialize)(parsed.address);
+      const session = await mintWalletSessionToken(parsed.address);
+      return json({ address, loginAddress: parsed.address }, 200, [
+        sessionCookieHeader(session),
+        challengeCookie("", 0),
+      ]);
+    }
+    const user = await sessionUserFromRequest(request);
+    if (path === "get-session" && request.method === "GET")
+      return json({ session: user ? { expiresIn: 86400 } : null, user });
+    if (!user) return json({ error: "Wallet login required" }, 401);
+    if (path === "wallet/prepare" && request.method === "POST") {
+      const address = await initialize(user.loginAddress!);
+      return json({ address });
+    }
+    if (path === "wallet/send" && request.method === "POST") {
+      return json(
+        { error: "NFT and product payments must be signed by your external wallet" },
+        403,
+      );
+    }
+    if (path === "wallet/balance" && request.method === "GET") {
+      const reader = createPublicClient({
+        chain: mainnetWalletChain,
+        transport: http(mainnetWalletChain.rpcUrls.default.http[0]),
+      });
+      const balance = await reader.readContract({
+        address: MONAD_USDC,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [user.walletAddress!],
+      });
+      return json({
+        address: user.walletAddress,
+        loginAddress: user.loginAddress,
+        balance: balance.toString(),
+        chainId: 143,
+        token: MONAD_USDC,
+        maxApiPayment: "100000",
+      });
+    }
+    return json({ error: "Not found" }, 404);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "Wallet request failed";
+    // Do not include RPC errors (may contain signed transaction bytes).
+    const safe =
+      /^(Configure and back up|7702 infrastructure|Wallet RPC|Unexpected 7702|Refusing to overwrite|Invalid call|Invalid calls|Unsupported|Network gas|Operation exceeds|Sign in)/.test(
+        text,
+      );
+    return json(
+      {
+        error: safe
+          ? text
+          : "Wallet operation failed. Check configuration and chain confirmation before retrying.",
+      },
+      503,
+    );
+  }
 }

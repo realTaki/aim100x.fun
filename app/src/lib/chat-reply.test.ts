@@ -1,11 +1,28 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { clipModelHistory, fanShortcutChoices, isFanShortcutChoice, MODEL_HISTORY_LIMIT, MODEL_HISTORY_MAX_CHARS, sanitizeIdolReply, userWantsPhoto } from "@/lib/chat-reply";
+import {
+  clipModelHistory,
+  fanShortcutChoices,
+  isFanShortcutChoice,
+  MODEL_HISTORY_LIMIT,
+  MODEL_HISTORY_MAX_CHARS,
+  sanitizeIdolReply,
+  userWantsPhoto,
+} from "@/lib/chat-reply";
 
 describe("sanitizeIdolReply", () => {
   it("strips fake photo markers and keeps the spoken line", () => {
-    assert.equal(sanitizeIdolReply("[图片：刚拍的照片] 怎么样，这件衣服好看吗？"), "怎么样，这件衣服好看吗？");
+    assert.equal(
+      sanitizeIdolReply("[图片：刚拍的照片] 怎么样，这件衣服好看吗？"),
+      "怎么样，这件衣服好看吗？",
+    );
     assert.equal(sanitizeIdolReply("刚换了这件 (发送图片)"), "刚换了这件");
+    assert.equal(
+      sanitizeIdolReply(
+        "嗯…刚洗完澡，好湿的。想看吗？ (using send_photo with id 3e1440f9f3b781aa902df3bbb8a41af8)",
+      ),
+      "嗯…刚洗完澡，好湿的。想看吗？",
+    );
     assert.equal(sanitizeIdolReply("*sends a selfie* look"), "look");
   });
 
@@ -27,14 +44,18 @@ describe("clipModelHistory", () => {
     assert.equal(clipped.length, MODEL_HISTORY_LIMIT);
     assert.equal(clipped[0]?.content.startsWith("#5 "), true);
     assert.equal(clipped.at(-1)?.content.startsWith(`#${MODEL_HISTORY_LIMIT + 4} `), true);
-    assert.equal(clipped.every((m) => m.content.length <= MODEL_HISTORY_MAX_CHARS), true);
-    assert.equal(clipped.some((m) => m.content === "failed" || m.content === "深夜私信"), false);
+    assert.equal(
+      clipped.every((m) => m.content.length <= MODEL_HISTORY_MAX_CHARS),
+      true,
+    );
+    assert.equal(
+      clipped.some((m) => m.content === "failed" || m.content === "深夜私信"),
+      false,
+    );
   });
 
   it("sanitizes a turn before it leaves the device", () => {
-    const clipped = clipModelHistory([
-      { role: "assistant", content: "[图片：刚拍的照片] 怎么样" },
-    ]);
+    const clipped = clipModelHistory([{ role: "assistant", content: "[图片：刚拍的照片] 怎么样" }]);
     assert.deepEqual(clipped, [{ role: "assistant", content: "怎么样" }]);
   });
 });

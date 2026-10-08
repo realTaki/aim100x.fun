@@ -66,17 +66,19 @@ export function ProfilePoolPickerSheet({
   function confirmMany() {
     const picked = items.filter((item) => selected.has(item.pageId));
     if (picked.length === 0) return;
-    void addAction.run(async () => {
-      await onPickMany?.(picked);
-    }).then((result) => {
-      if (result === "idle" || result === "done") onOpenChange(false);
-    });
+    void addAction
+      .run(async () => {
+        await onPickMany?.(picked);
+      })
+      .then((result) => {
+        if (result === "idle" || result === "done") onOpenChange(false);
+      });
   }
 
   return (
     <AppFrameOverlay open={open} onOpenChange={onOpenChange}>
       <AppPageShell
-        title={multiple && selected.size > 0 ? `已选 ${selected.size}` : "所有图片"}
+        title={multiple && selected.size > 0 ? `Selected: ${selected.size}` : "All photos"}
         onBack={() => onOpenChange(false)}
         bodyClassName="px-0 pt-0 pb-0"
         footer={
@@ -85,12 +87,12 @@ export function ProfilePoolPickerSheet({
               <ActionGlyphButton
                 status={addAction.status}
                 disabled={selected.size === 0}
-                idleLabel={selected.size > 0 ? `添加 ${selected.size}` : "添加"}
-                pendingLabel="添加中…"
+                idleLabel={selected.size > 0 ? `Add ${selected.size}` : "Add"}
+                pendingLabel="Adding…"
                 onClick={confirmMany}
                 className="flex h-11 w-full items-center justify-center rounded-full bg-accent text-sm font-medium text-fg disabled:opacity-45"
               >
-                添加{selected.size > 0 ? ` ${selected.size}` : ""}
+                Add{selected.size > 0 ? ` ${selected.size}` : ""}
               </ActionGlyphButton>
             </div>
           ) : undefined

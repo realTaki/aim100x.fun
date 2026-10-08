@@ -75,7 +75,8 @@ function sendPhotoTool(unseen: UnseenPhoto[]) {
         properties: {
           image_id: {
             type: "string",
-            description: "Unseen photo id from the list in the tool description. Never invent an id.",
+            description:
+              "Unseen photo id from the list in the tool description. Never invent an id.",
           },
         },
       },
@@ -84,9 +85,15 @@ function sendPhotoTool(unseen: UnseenPhoto[]) {
 }
 
 /** `send_photo` is omitted when this fan has no unseen photos left. */
-export function chatPhotoTools(unseen: UnseenPhoto[]) {
+export function chatPhotoTools(
+  unseen: UnseenPhoto[],
+  options: { voiceEnabled?: boolean; generationEnabled?: boolean } = {},
+) {
   const photos = unseen.filter((p) => p.id.trim()).slice(0, 24);
-  const rest = [GENERATE_NEW_PHOTOS_TOOL, SEND_VOICE_NOTE_TOOL];
+  const rest = [
+    ...(options.generationEnabled === false ? [] : [GENERATE_NEW_PHOTOS_TOOL]),
+    ...(options.voiceEnabled === false ? [] : [SEND_VOICE_NOTE_TOOL]),
+  ];
   return photos.length > 0 ? [sendPhotoTool(photos), ...rest] : rest;
 }
 
@@ -149,11 +156,7 @@ function emptyDecision(): ChatToolDecision {
   };
 }
 
-function applyNamedTool(
-  d: ChatToolDecision,
-  name: string,
-  args: Record<string, unknown>,
-): void {
+function applyNamedTool(d: ChatToolDecision, name: string, args: Record<string, unknown>): void {
   if (name === SEND_PHOTO_TOOL) {
     d.sendPhoto = true;
     d.photoPrompt = promptOf(args) ?? d.photoPrompt;
@@ -167,25 +170,57 @@ function applyNamedTool(
     if (typeof tags === "string" && tags.trim()) d.photoTags = tags.trim().slice(0, 160);
   }
   if (name === SEND_VOICE_TOOL) {
-    d.sendVoice = true;
     const spoken = args.text ?? args.speech ?? args.line;
-    if (typeof spoken === "string" && spoken.trim()) d.voiceText = spoken.trim().slice(0, 280);
+    if (typeof spoken === "string" && spoken.trim()) {
+      d.sendVoice = true;
+      d.voiceText = spoken.trim().slice(0, 280);
+    }
   }
 }
 
-/** Read MiniMax `tool_calls` off a chat completion message. */
+/** Grok sometimes writes `(using send_photo with id …)` instead of `tool_calls`. */
+function narratedToolDecision(text: string): ChatToolDecision {
+  const d = emptyDecision();
+  if (!text) return d;
+  const narrated =
+    /[（(]\s*using\s+(send_photo|send_voice|generate_new_photos|expand_photo_library)\b([^)）]*)[)）]/gi;
+  for (const match of text.matchAll(narrated)) {
+    const name = match[1] ?? "";
+    const rest = match[2] ?? "";
+    if (name === SEND_PHOTO_TOOL) {
+      const id = rest.match(/\b(?:id|image_id)\s*[:=]?\s*([0-9a-f-]{8,})/i)?.[1];
+      applyNamedTool(d, name, id ? { image_id: id } : {});
+    } else if (name === SEND_VOICE_TOOL) {
+      const spoken = rest.match(/\b(?:text|id)\s*[:=]?\s*(.+)$/i)?.[1]?.trim();
+      applyNamedTool(d, name, spoken ? { text: spoken } : {});
+    } else {
+      const prompt = rest.match(/\bprompt\s*[:=]?\s*(.+)$/i)?.[1]?.trim();
+      applyNamedTool(d, name, prompt ? { prompt } : {});
+    }
+  }
+  return d;
+}
+
+/** Read OpenAI `tool_calls` off a chat completion message. */
 export function parseChatToolCalls(message: unknown): ChatToolDecision {
   if (!message || typeof message !== "object") return emptyDecision();
   const m = message as {
     tool_calls?: unknown;
+    toolCalls?: unknown;
     function_call?: unknown;
+    content?: unknown;
   };
   const d = emptyDecision();
   const entries: unknown[] = [];
   if (Array.isArray(m.tool_calls)) entries.push(...m.tool_calls);
+  if (Array.isArray(m.toolCalls)) entries.push(...m.toolCalls);
   if (m.function_call) entries.push(m.function_call);
   for (const entry of entries) {
     applyNamedTool(d, toolNameOf(entry), toolArgsOf(entry));
+  }
+  if (!d.sendPhoto && !d.expandLibrary && !d.sendVoice) {
+    const narrated = narratedToolDecision(assistantTextContent(message));
+    if (narrated.sendPhoto || narrated.expandLibrary || narrated.sendVoice) return narrated;
   }
   return d;
 }

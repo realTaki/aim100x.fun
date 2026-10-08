@@ -4,12 +4,12 @@ import { PRODUCT_DOCS, handleProductDocsRequest } from "./product-docs.ts";
 
 describe("agent-facing /docs", () => {
   it("names product concepts without deploy or ERC-6553", () => {
-    assert.match(PRODUCT_DOCS, /^# LonelyFuns/m);
-    assert.match(PRODUCT_DOCS, /https:\/\/lonelyfuns\.vercel\.app\/mcp/);
+    assert.match(PRODUCT_DOCS, /^# aim100x.fun/m);
+    assert.match(PRODUCT_DOCS, /https:\/\/aim100x\.fun\/mcp/);
     assert.match(PRODUCT_DOCS, /lf1\./);
     assert.match(PRODUCT_DOCS, /ERC-4337/);
-    assert.match(PRODUCT_DOCS, /Passkey smart account/);
-    assert.match(PRODUCT_DOCS, /Paymaster/);
+    assert.match(PRODUCT_DOCS, /External-wallet SIWE/);
+    assert.match(PRODUCT_DOCS, /EOA \+ EIP-7702 API wallet/);
     assert.match(PRODUCT_DOCS, /ERC-721/);
     assert.match(PRODUCT_DOCS, /ERC-6551/);
     assert.match(PRODUCT_DOCS, /token-bound account/);
@@ -42,7 +42,7 @@ describe("agent-facing /docs", () => {
 
   it("serves Markdown to agents and raw Markdown HTML to browsers", async () => {
     const md = await handleProductDocsRequest(
-      new Request("https://lonelyfuns.vercel.app/docs", {
+      new Request("https://aim100x.fun/docs", {
         headers: { accept: "text/markdown" },
       }),
     );
@@ -52,7 +52,7 @@ describe("agent-facing /docs", () => {
     assert.equal(body, PRODUCT_DOCS);
 
     const browser = await handleProductDocsRequest(
-      new Request("https://lonelyfuns.vercel.app/docs", {
+      new Request("https://aim100x.fun/docs", {
         headers: { accept: "text/html,application/xhtml+xml" },
       }),
     );
@@ -60,7 +60,7 @@ describe("agent-facing /docs", () => {
     assert.match(browser.headers.get("content-type") ?? "", /text\/html/);
     const html = await browser.text();
     assert.match(html, /<pre/);
-    assert.match(html, /LonelyFuns/);
+    assert.match(html, /aim100x.fun/);
     assert.match(html, /ERC-6551/);
   });
 });
