@@ -1,11 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  applySceneEntry,
-  emptyScene,
-  sceneEntryOf,
-  type SceneEntry,
-} from "@/lib/idol-fields";
+import { applySceneEntry, emptyScene, sceneEntryOf, type SceneEntry } from "@/lib/idol-fields";
 import type { FlexibleScene } from "@/lib/idols";
 import { uid } from "@/lib/utils";
 
@@ -40,9 +35,7 @@ export function ManagerSceneList({
   function patch(index: number, field: keyof SceneEntry, value: string) {
     onChange(
       scenes.map((scene, i) =>
-        i === index
-          ? applySceneEntry(scene, { ...sceneEntryOf(scene), [field]: value })
-          : scene,
+        i === index ? applySceneEntry(scene, { ...sceneEntryOf(scene), [field]: value }) : scene,
       ),
     );
   }
@@ -60,7 +53,7 @@ export function ManagerSceneList({
   return (
     <section className="mt-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-muted">场景</span>
+        <span className="text-xs text-muted">Scenes</span>
         {disabled ? null : (
           <button
             type="button"
@@ -68,7 +61,7 @@ export function ManagerSceneList({
             className="inline-flex items-center gap-1 rounded-full border border-accent/50 px-3 py-1 text-xs font-medium text-accent"
           >
             <Plus className="size-3.5" strokeWidth={2} />
-            添加
+            Add
           </button>
         )}
       </div>
@@ -117,7 +110,7 @@ export function ManagerSceneList({
                   className="mt-3 inline-flex items-center gap-1.5 text-xs text-red-300"
                 >
                   <Trash2 className="size-3.5" />
-                  删除
+                  Delete
                 </button>
               )}
             </li>

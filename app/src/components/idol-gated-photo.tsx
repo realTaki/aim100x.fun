@@ -51,7 +51,7 @@ export function IdolGatedPhoto({
       type="button"
       onClick={handleClick}
       className={cn("relative block size-full overflow-hidden", className)}
-      aria-label={locked || badge ? "锁定" : "打开"}
+      aria-label={locked || badge ? "Locked" : "Open"}
     >
       <GatedIdolImage
         src={src}

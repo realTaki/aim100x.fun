@@ -28,7 +28,7 @@ export function AppPageShell({
             <ChevronLeft className="size-7" strokeWidth={2} />
           </Link>
         ) : (
-          <button type="button" onClick={onBack} className="lf-icon-btn" aria-label="返回">
+          <button type="button" onClick={onBack} className="lf-icon-btn" aria-label="Back">
             <ChevronLeft className="size-7" strokeWidth={2} />
           </button>
         )}
@@ -76,11 +76,7 @@ export function AppFrameOverlay({
 
   return createPortal(
     <div
-      className={
-        host === document.body
-          ? "fixed inset-0 z-50"
-          : "absolute inset-0 z-50"
-      }
+      className={host === document.body ? "fixed inset-0 z-50" : "absolute inset-0 z-50"}
       role="dialog"
       aria-modal="true"
     >

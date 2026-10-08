@@ -1,12 +1,10 @@
 import type { ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { LfLogo } from "@/components/lf-logo";
-import { BOTTOM_GLASS_TAB_BAR_MAIN_PB } from "@/components/bottom-glass-tab-bar";
+import { HubHeader } from "@/components/hub-header";
 import { pageOwnsHubHeader } from "@/lib/hub-viewport";
 
-const HUB_WRAP =
-  "flex h-full min-h-0 w-full flex-col overflow-hidden px-4 pt-[max(1.25rem,env(safe-area-inset-top))]";
-const HUB_MAIN_SCROLL = `flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y ${BOTTOM_GLASS_TAB_BAR_MAIN_PB}`;
+const HUB_WRAP = "lf-hub-shell flex h-full min-h-0 w-full flex-col overflow-hidden";
+const HUB_MAIN_SCROLL = "lf-hub-scroll flex flex-col";
 const HUB_MAIN_PINNED = "flex min-h-0 flex-1 flex-col overflow-hidden";
 
 /**
@@ -29,11 +27,7 @@ export function HubShellLayout({
   const pinChrome = active && pageOwnsHubHeader(pathname);
   return (
     <div className={active ? HUB_WRAP : "contents"}>
-      {active && !pinChrome ? (
-        <header className="flex shrink-0 items-center gap-3 pb-3">
-          <LfLogo className="text-lg sm:text-xl" />
-        </header>
-      ) : null}
+      {active && !pinChrome ? <HubHeader /> : null}
       <main className={active ? (pinChrome ? HUB_MAIN_PINNED : HUB_MAIN_SCROLL) : "contents"}>
         {children}
       </main>

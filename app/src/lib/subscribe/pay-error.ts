@@ -17,21 +17,24 @@ function errText(err: unknown): string {
 
 export function shortPayError(err: unknown): string {
   const t = errText(err).toLowerCase();
+  if (/photo (?:is )?unavailable/.test(t)) return "Photo unavailable. No new payment submitted.";
   if (
     /erc20insufficientbalance|exceeds balance|transfer amount exceeds|余额不足|low balance/.test(t)
   ) {
     return "Low balance";
   }
   if (
-    /aa21|aa31|aa32|paymaster deposit|didn't pay prefund|preverificationgas is not enough/.test(
-      t,
-    )
+    /aa21|aa31|aa32|paymaster deposit|didn't pay prefund|preverificationgas is not enough/.test(t)
   ) {
     return "Low gas";
   }
   if (/user rejected|user denied|denied transaction|cancelled|canceled|abort/.test(t)) {
     return "Canceled";
   }
+  if (
+    /transaction submitted|payment.*pending|transaction.*not found|payment does not match/.test(t)
+  )
+    return "Check the submitted transaction in your wallet before retrying";
   const aa = t.match(/\baa(\d{2})\b/);
   if (aa) return `AA${aa[1]}`;
   if (/out of gas|gas required exceeds/.test(t)) return "Low gas";

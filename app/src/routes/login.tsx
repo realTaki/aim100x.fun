@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 import { LfLogo } from "@/components/lf-logo";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { PasskeySignIn } from "@/lib/auth/passkey-sign-in";
+import { WalletSignIn } from "@/lib/auth/wallet-sign-in";
 
 function safeNext(raw: unknown) {
   if (typeof raw !== "string") return "/";
@@ -23,7 +23,7 @@ function Login() {
 
   useEffect(() => {
     if (isPending || !user) return;
-    router.history.replace(next);
+    router.history.replace(`/welcome?pin=1&next=${encodeURIComponent(next)}`);
   }, [isPending, next, router, user]);
 
   return (
@@ -43,7 +43,7 @@ function Login() {
       {isPending || user ? (
         <div className="mt-8 size-10 animate-pulse rounded-full bg-surface-2" />
       ) : (
-        <PasskeySignIn callbackURL={next} />
+        <WalletSignIn callbackURL={next} />
       )}
     </main>
   );

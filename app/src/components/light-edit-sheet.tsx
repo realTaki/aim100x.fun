@@ -21,7 +21,7 @@ export function LightEditSheet({
   children,
   title = "",
   onSave,
-  saveLabel = "保存",
+  saveLabel = "Save",
   saveDisabled,
   closeOnSuccess = false,
   className,
@@ -46,15 +46,17 @@ export function LightEditSheet({
                 status={action.status}
                 disabled={saveDisabled}
                 idleLabel={saveLabel}
-                pendingLabel="保存中…"
+                pendingLabel="Saving…"
                 onClick={() => {
-                  void action.run(async () => {
-                    await onSave();
-                  }).then((result) => {
-                    if (closeOnSuccess && (result === "idle" || result === "done")) {
-                      onOpenChange(false);
-                    }
-                  });
+                  void action
+                    .run(async () => {
+                      await onSave();
+                    })
+                    .then((result) => {
+                      if (closeOnSuccess && (result === "idle" || result === "done")) {
+                        onOpenChange(false);
+                      }
+                    });
                 }}
                 className="flex h-11 w-full items-center justify-center rounded-full bg-accent text-sm font-medium text-fg shadow-[0_8px_24px_rgb(192_38_255_/_0.28)] transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
               >

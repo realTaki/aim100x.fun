@@ -1,32 +1,16 @@
 import type { Address } from "viem";
-import { isPasskeyClientSession } from "@/lib/auth/passkey-client";
-import { readPersistedWalletSession } from "@/lib/auth/wallet-session";
+import { getLiveWalletSessionRow } from "@/lib/auth/client";
 import type { AppUser } from "@/lib/auth/use-current-user";
-import { walletAddressFromUser } from "@/lib/user-profile/wallet-address";
-
-function persistedAddress(): Address | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return readPersistedWalletSession(window.localStorage, window.sessionStorage).address;
-  } catch {
-    return null;
-  }
+export function externalWalletAddress(): Address | null {
+  const address = getLiveWalletSessionRow()?.loginAddress;
+  return address && /^0x[a-f0-9]{40}$/i.test(address) ? (address as Address) : null;
 }
-
-/**
- * The signed-in Passkey smart-account address for fan and chat ownership.
- */
 export async function resolveConnectedWallet(user?: AppUser | null): Promise<Address | null> {
-  const fromUser = user ? walletAddressFromUser(user) : null;
-  if (user?.embedded && fromUser) return fromUser;
-  if (!isPasskeyClientSession()) return null;
-  const persisted = persistedAddress();
-  if (persisted) return persisted;
-  return fromUser;
+  if (user && !user.isDevFallback && /^0x[a-f0-9]{40}$/i.test(user.id)) return user.id as Address;
+  return externalWalletAddress();
 }
-
-export async function requireConnectedWallet(user?: AppUser | null): Promise<Address> {
-  const wallet = await resolveConnectedWallet(user);
-  if (!wallet) throw new Error("Sign in with a passkey first");
-  return wallet;
+export async function requireConnectedWallet(user?: AppUser | null) {
+  const address = await resolveConnectedWallet(user);
+  if (!address) throw new Error("Sign in with a wallet first");
+  return address;
 }

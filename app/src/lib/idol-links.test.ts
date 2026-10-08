@@ -5,8 +5,8 @@ import { httpUrlOf, idolPublicPath, idolPublicUrl, twitterUrlOf } from "./idol-l
 describe("idol public URL", () => {
   it("uses /idol/{tokenId} on the production origin", () => {
     assert.equal(idolPublicPath(1), "/idol/1");
-    assert.equal(idolPublicUrl(1), "https://lonelyfuns.vercel.app/idol/1");
-    assert.equal(idolPublicUrl(4), "https://lonelyfuns.vercel.app/idol/4");
+    assert.equal(idolPublicUrl(1), "https://aim100x.fun/idol/1");
+    assert.equal(idolPublicUrl(4), "https://aim100x.fun/idol/4");
   });
 });
 

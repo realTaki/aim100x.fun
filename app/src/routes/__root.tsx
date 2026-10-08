@@ -1,14 +1,18 @@
 import type { CSSProperties, ReactNode } from "react";
-import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/lib/auth/provider";
-import {
-  BottomGlassTabBar,
-  shouldShowBottomGlassTabBar,
-} from "@/components/bottom-glass-tab-bar";
+import { BottomGlassTabBar, shouldShowBottomGlassTabBar } from "@/components/bottom-glass-tab-bar";
 import { ActionErrorBell } from "@/components/action-error-bell";
 import { HubShellLayout } from "@/components/hub-shell-layout";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { PrivacyGate } from "@/components/privacy-gate";
 import { HUB_STRIP_STYLE } from "@/lib/hub-viewport";
 import appCss from "../styles.css?url";
 
@@ -42,7 +46,11 @@ export const Route = createRootRoute({
         href: "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap",
       },
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/__grok/manifest.webmanifest" },
+      {
+        rel: "manifest",
+        href: "/__grok/manifest.webmanifest",
+        crossOrigin: "use-credentials",
+      },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
     ],
   }),
@@ -64,17 +72,14 @@ function AppShell({ children }: { children: ReactNode }) {
       className="lf-stage h-full overflow-hidden text-fg"
       style={HUB_STRIP_STYLE as CSSProperties}
     >
-      <div className="lf-frame relative mx-auto h-full min-h-0 overflow-hidden">
-        {children}
-        <ActionErrorBell />
-      </div>
+      <div className="lf-frame relative mx-auto h-full min-h-0 overflow-hidden">{children}</div>
     </div>
   );
 }
 
 function RootDocument() {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -82,8 +87,11 @@ function RootDocument() {
         <PreviewHostBridge />
         <AuthProvider>
           <AppShell>
-            <HubFrame />
-            <BottomGlassTabBar />
+            <PrivacyGate>
+              <HubFrame />
+              <BottomGlassTabBar />
+              <ActionErrorBell />
+            </PrivacyGate>
           </AppShell>
         </AuthProvider>
         <Analytics />

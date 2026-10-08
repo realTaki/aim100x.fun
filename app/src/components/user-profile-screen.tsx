@@ -1,3 +1,4 @@
+import { ApiWalletBalance } from "./api-wallet-balance";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, RotateCcw, Save, Upload } from "lucide-react";
@@ -28,6 +29,7 @@ export function UserProfileScreen() {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [locale, setLocale] = useState("");
+  const [languageSelected, setLanguageSelected] = useState(false);
   const [draftCustomAvatar, setDraftCustomAvatar] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const saveAction = useActionGlyph();
@@ -52,8 +54,9 @@ export function UserProfileScreen() {
       trimmedUsername !== profile.username ||
       trimmedBio !== profile.bio ||
       locale !== profile.locale ||
+      languageSelected ||
       draftCustomAvatar !== profile.customAvatar,
-    [trimmedUsername, trimmedBio, locale, draftCustomAvatar, profile],
+    [trimmedUsername, trimmedBio, locale, languageSelected, draftCustomAvatar, profile],
   );
 
   useEffect(() => {
@@ -65,6 +68,7 @@ export function UserProfileScreen() {
     if (activeUserIdRef.current !== user.id) {
       activeUserIdRef.current = user.id;
       appliedProfileRef.current = null;
+      setLanguageSelected(false);
     }
     const profileKey = `${user.id}\0${profile.username}\0${profile.bio}\0${profile.locale}\0${profile.customAvatar ?? ""}`;
     const applied = appliedProfileRef.current;
@@ -145,13 +149,17 @@ export function UserProfileScreen() {
   async function onSave() {
     if (!isDirty) return;
     await saveAction.run(async () => {
-      const ok = save({
-        username: trimmedUsername,
-        bio: trimmedBio,
-        customAvatar: draftCustomAvatar,
-        locale,
-      });
+      const ok = save(
+        {
+          username: trimmedUsername,
+          bio: trimmedBio,
+          customAvatar: draftCustomAvatar,
+          locale,
+        },
+        languageSelected,
+      );
       if (!ok) throw new Error("Couldn't save");
+      setLanguageSelected(false);
     });
   }
 
@@ -185,7 +193,7 @@ export function UserProfileScreen() {
 
   return (
     <>
-      <section className="mt-8 flex flex-col items-center">
+      <section className="mt-5 flex flex-col items-center">
         {previewAvatarUrl ? (
           <button
             type="button"
@@ -209,7 +217,14 @@ export function UserProfileScreen() {
           </button>
         )}
         <p className="mt-3 text-sm text-muted">{accountLabel}</p>
-        {wallet ? <LonelyUsdFaucet account={wallet} /> : null}
+        {user.apiWalletAddress ? (
+          <ApiWalletBalance key={user.apiWalletAddress} account={user.apiWalletAddress} />
+        ) : null}
+        <p className="mt-3 max-w-sm text-xs text-muted">
+          NFTs, subscriptions and tips use your external wallet on Monad testnet. Your wallet signs
+          each payment and pays MON gas.
+        </p>
+        {wallet ? <LonelyUsdFaucet key={wallet} account={wallet} /> : null}
         {draftCustomAvatar && defaultAvatarUrl ? (
           <button
             type="button"
@@ -232,19 +247,22 @@ export function UserProfileScreen() {
         />
       </section>
 
-      <section className="mt-10 flex flex-col gap-5">
+      <section className="mt-8 flex flex-col gap-4">
         <label className="flex flex-col gap-2">
           <span className="text-xs font-medium tracking-wide text-muted uppercase">
-            Prefer language
+            Preferred language
           </span>
           <select
             value={locale}
-            onChange={(e) => setLocale(e.target.value)}
-            className="lf-search appearance-none py-3 pr-10 pl-4"
+            onChange={(e) => {
+              setLocale(e.target.value);
+              setLanguageSelected(true);
+            }}
+            className="lf-form-field appearance-none"
           >
             {locale ? null : (
               <option value="" disabled>
-                Choose prefer language
+                Choose preferred language
               </option>
             )}
             {profileLocaleOptions(locale).map((row) => (
@@ -261,7 +279,7 @@ export function UserProfileScreen() {
             onChange={(e) => setUsername(e.target.value)}
             placeholder={accountLabel}
             maxLength={32}
-            className="lf-search py-3"
+            className="lf-form-field"
           />
         </label>
         <label className="flex flex-col gap-2">
@@ -272,7 +290,7 @@ export function UserProfileScreen() {
             placeholder="A line about you…"
             maxLength={280}
             rows={4}
-            className="lf-search min-h-[6rem] resize-none py-3 leading-relaxed"
+            className="lf-form-field min-h-28 resize-y leading-relaxed"
           />
         </label>
 
@@ -281,9 +299,9 @@ export function UserProfileScreen() {
             status={saveAction.status}
             onClick={() => void onSave()}
             disabled={!isDirty}
-            idleLabel="保存"
-            pendingLabel="保存中"
-            successLabel="已保存"
+            idleLabel="Save"
+            pendingLabel="Saving"
+            successLabel="Saved"
             className={cn(
               "flex size-11 items-center justify-center rounded-full bg-accent text-fg shadow-[0_8px_24px_rgb(192_38_255_/_0.28)] transition-opacity",
               saveAction.status === "idle" && "disabled:cursor-not-allowed disabled:opacity-45",
@@ -303,8 +321,8 @@ export function UserProfileScreen() {
               setSigningOut(true);
               void signOut("/").catch(() => setSigningOut(false));
             }}
-            aria-label={signingOut ? "退出中" : "退出登录"}
-            title={signingOut ? "退出中" : "退出登录"}
+            aria-label={signingOut ? "Signing out" : "Sign out"}
+            title={signingOut ? "Signing out" : "Sign out"}
             className="mx-auto flex size-11 items-center justify-center rounded-full text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
           >
             <LogOut aria-hidden className="size-5" strokeWidth={1.75} />

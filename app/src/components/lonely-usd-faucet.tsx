@@ -91,8 +91,7 @@ export function LonelyUsdFaucet({ account }: { account: `0x${string}` }) {
     }
   }
 
-  const balanceLabel =
-    balance === null ? "—" : formatLonelyUsdAmount(atomicAmountToUsdc(balance));
+  const balanceLabel = balance === null ? "—" : formatLonelyUsdAmount(atomicAmountToUsdc(balance));
   const cooldownLabel = formatFaucetCountdown(remaining);
   const claimLabel = cooling && !showingGlyph ? cooldownLabel : LONELY_USD_FAUCET_CLAIM_LABEL;
 
@@ -103,7 +102,7 @@ export function LonelyUsdFaucet({ account }: { account: `0x${string}` }) {
         <ActionGlyphButton
           status={showingGlyph ? faucetAction.status : "idle"}
           idleLabel={claimLabel}
-          pendingLabel="领取中"
+          pendingLabel="Claiming"
           onClick={() => void faucetAction.run(onFaucet)}
           disabled={cooling && !showingGlyph}
           className={cn(
@@ -119,18 +118,14 @@ export function LonelyUsdFaucet({ account }: { account: `0x${string}` }) {
         <button
           type="button"
           onClick={() => setDepositOpen(true)}
-          aria-label="充值"
-          title="充值"
+          aria-label="Deposit"
+          title="Deposit"
           className="flex size-8 items-center justify-center rounded-full border border-border text-fg transition-colors hover:border-accent/40"
         >
           <QrCode aria-hidden className="size-5" strokeWidth={1.75} />
         </button>
       </div>
-      <LonelyUsdDepositSheet
-        account={account}
-        open={depositOpen}
-        onOpenChange={setDepositOpen}
-      />
+      <LonelyUsdDepositSheet account={account} open={depositOpen} onOpenChange={setDepositOpen} />
     </div>
   );
 }

@@ -6,7 +6,13 @@ import { cn } from "@/lib/utils";
 const KNOB = 52;
 const INSET = 2;
 
-export function SwipeUnlock({ onUnlock }: { onUnlock: () => void }) {
+export function SwipeUnlock({
+  onUnlock,
+  label = "Unlock",
+}: {
+  onUnlock: () => void;
+  label?: string;
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -89,7 +95,11 @@ export function SwipeUnlock({ onUnlock }: { onUnlock: () => void }) {
       if (track.hasPointerCapture(event.pointerId)) {
         track.releasePointerCapture(event.pointerId);
       }
-      finish(Math.min(drag.travel, Math.max(0, event.clientX - drag.startX)), drag.velocity, drag.travel);
+      finish(
+        Math.min(drag.travel, Math.max(0, event.clientX - drag.startX)),
+        drag.velocity,
+        drag.travel,
+      );
     };
 
     track.addEventListener("pointerdown", onDown);
@@ -113,7 +123,7 @@ export function SwipeUnlock({ onUnlock }: { onUnlock: () => void }) {
         "backdrop-blur-xl",
       )}
       role="slider"
-      aria-label="Unlock"
+      aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(progress * 100)}

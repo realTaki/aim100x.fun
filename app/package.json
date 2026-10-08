@@ -17,10 +17,14 @@
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
     "check:auth": "node scripts/check-auth-invariant.mjs",
-    "test:src": "node --experimental-strip-types --import ./scripts/register-ts-paths.mjs --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/auth/account-host.test.ts src/lib/auth/wallet-session.test.ts src/lib/auth/wallet-auth.server.test.ts src/lib/auth/passkey-webauthn.test.ts src/lib/auth/p256-precompile.test.ts src/lib/auth/passkey-record.test.ts src/lib/ai-provider.test.ts src/lib/idol-overlay.test.ts src/lib/idol-onchain.test.ts src/lib/idol-amateur.test.ts src/lib/idols100x-membership-chain.server.test.ts src/lib/idols100x-demo.test.ts src/lib/idol-manager-wallet.test.ts src/lib/nft-metadata.test.ts src/lib/notion-bucket-candidates.test.ts src/lib/profile-album.test.ts src/lib/cover-album.test.ts src/lib/media-app-id.test.ts src/lib/image-aspect.test.ts src/lib/library-rows.test.ts src/lib/user-profile/identicon.test.ts src/lib/lonely-usd.test.ts src/lib/auth/passkey-userop-receipt.test.ts src/lib/auth/passkey-userop-gas.test.ts src/lib/pay-action.test.ts src/lib/subscribe/pay-error.test.ts src/lib/idol-pricing.test.ts src/lib/idol-links.test.ts src/lib/hub-viewport.test.ts src/lib/welcome-entry.test.ts src/lib/locale.test.ts src/lib/paymaster-signer.test.ts src/lib/idol-fields.test.ts src/lib/thread.test.ts src/lib/chat-store/sql.test.ts src/lib/chat-fallback.test.ts src/lib/chat-send-lock.test.ts src/lib/chat-hobby.test.ts src/lib/chat-prompt.test.ts src/lib/action-glyph.test.ts src/lib/chat-tools.test.ts src/lib/chat-reply.test.ts src/lib/mcp/mcp.test.ts src/lib/product-docs.test.ts",
+    "test:src": "node --experimental-strip-types --import ./scripts/register-ts-paths.mjs --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/auth/account-host.test.ts src/lib/auth/wallet-session.test.ts src/lib/auth/wallet-auth.server.test.ts src/lib/auth/passkey-webauthn.test.ts src/lib/auth/p256-precompile.test.ts src/lib/auth/passkey-record.test.ts src/lib/ai-provider.test.ts src/lib/idol-overlay.test.ts src/lib/idol-onchain.test.ts src/lib/idol-amateur.test.ts src/lib/idols100x-membership-chain.server.test.ts src/lib/idols100x-demo.test.ts src/lib/idol-manager-wallet.test.ts src/lib/nft-metadata.test.ts src/lib/notion-bucket-candidates.test.ts src/lib/profile-album.test.ts src/lib/cover-album.test.ts src/lib/media-app-id.test.ts src/lib/image-aspect.test.ts src/lib/library-rows.test.ts src/lib/user-profile/identicon.test.ts src/lib/lonely-usd.test.ts src/lib/auth/passkey-userop-receipt.test.ts src/lib/auth/passkey-userop-gas.test.ts src/lib/pay-action.test.ts src/lib/subscribe/pay-error.test.ts src/lib/idol-pricing.test.ts src/lib/idol-links.test.ts src/lib/hub-viewport.test.ts src/lib/welcome-entry.test.ts src/lib/locale.test.ts src/lib/paymaster-signer.test.ts src/lib/idol-fields.test.ts src/lib/thread.test.ts src/lib/chat-store/sql.test.ts src/lib/chat-fallback.test.ts src/lib/chat-send-lock.test.ts src/lib/chat-hobby.test.ts src/lib/chat-prompt.test.ts src/lib/action-glyph.test.ts src/lib/chat-tools.test.ts src/lib/chat-reply.test.ts src/lib/mcp/mcp.test.ts src/lib/product-docs.test.ts src/lib/auth/wallet-auth-http.server.test.ts src/lib/x402-payment.server.test.ts src/lib/monid-api.server.test.ts src/lib/auth/external-wallet.test.ts src/lib/idol-config.test.ts src/lib/snapshot-cache.test.ts src/lib/privacy-pin.test.ts src/lib/media-http.server.test.ts src/lib/chat-agent-tools.test.ts src/lib/chat-image-payment.server.test.ts",
     "test": "node --test 'scripts/**/*.test.mjs' && npm run test:src",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "media:migrate": "node --use-env-proxy --experimental-strip-types --import ./scripts/register-ts-paths.mjs scripts/migrate-notion-media.ts",
+    "media:check": "node --use-env-proxy --experimental-strip-types --import ./scripts/register-ts-paths.mjs scripts/check-media-storage.ts",
+    "config:migrate": "node --use-env-proxy --experimental-strip-types --import ./scripts/register-ts-paths.mjs scripts/migrate-idol-config.ts",
+    "storage:init": "node --use-env-proxy --experimental-strip-types --import ./scripts/register-ts-paths.mjs scripts/initialize-idol-storage.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.0",
@@ -46,6 +50,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@scure/bip39": "^2.4.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-query": "^5.101.0",
@@ -54,6 +59,10 @@
     "@tanstack/react-table": "^8.21.0",
     "@tanstack/router-plugin": "^1.168.42",
     "@vercel/analytics": "^2.0.1",
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
+    "@x402/extensions": "^2.28.0",
+    "@x402/fetch": "^2.28.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -74,7 +83,12 @@
     "vaul": "^1.1.2",
     "viem": "^2.56.7",
     "zod": "^4.4.0",
-    "zustand": "^5.0.0"
+    "zustand": "^5.0.0",
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "@aws-sdk/s3-request-presigner": "^3.1147.0",
+    "@neondatabase/serverless": "^1.2.0",
+    "https-proxy-agent": "^9.1.0",
+    "@vercel/functions": "^3.9.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

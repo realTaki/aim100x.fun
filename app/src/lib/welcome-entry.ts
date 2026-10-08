@@ -25,7 +25,8 @@ export function hasWelcomeEntered(): boolean {
 
 export function markWelcomeEntered(): void {
   if (typeof document === "undefined") return;
-  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${WELCOME_ENTERED_COOKIE}=${WELCOME_ENTERED_VALUE}; Path=/; SameSite=Lax${secure}`;
 }
 
@@ -77,7 +78,6 @@ export function swipeUnlocked(dx: number, travel: number, velocityPxPerMs = 0): 
 }
 
 /** Client UX lock only — not account auth. */
-export const WELCOME_PIN = "996996";
 export const WELCOME_PIN_LENGTH = 6;
 export const FACE_ID_FAIL_MS = 820;
 
@@ -85,9 +85,4 @@ export function appendPinDigit(current: string, digit: string): string {
   if (!/^\d$/.test(digit)) return current;
   if (current.length >= WELCOME_PIN_LENGTH) return current;
   return `${current}${digit}`;
-}
-
-export function pinEntryStatus(pin: string): "incomplete" | "ok" | "wrong" {
-  if (pin.length < WELCOME_PIN_LENGTH) return "incomplete";
-  return pin === WELCOME_PIN ? "ok" : "wrong";
 }

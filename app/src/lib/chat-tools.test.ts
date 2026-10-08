@@ -103,11 +103,35 @@ describe("parseChatToolCalls", () => {
   });
 
   it("does not infer a tool call from assistant text", () => {
-    const raw =
-      "刚换了这件\nrun tool send_photo with image_id is 3e1440f9f3b781aa902df3bbb8a41af8";
+    const raw = "刚换了这件\nrun tool send_photo with image_id is 3e1440f9f3b781aa902df3bbb8a41af8";
     const d = parseChatToolCalls({ content: raw });
     assert.equal(d.sendPhoto, false);
     assert.equal(d.imageId, undefined);
+  });
+
+  it("reads Grok's narrated send_photo when tool_calls are missing", () => {
+    const id = "3e1440f9f3b781aa902df3bbb8a41af8";
+    const d = parseChatToolCalls({
+      content: `嗯…刚洗完澡，好湿的。想看吗？ (using send_photo with id ${id})`,
+    });
+    assert.equal(d.sendPhoto, true);
+    assert.equal(d.imageId, id);
+  });
+
+  it("prefers native tool_calls over a narrated id", () => {
+    const d = parseChatToolCalls({
+      content: "(using send_photo with id bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)",
+      toolCalls: [
+        {
+          type: "function",
+          function: {
+            name: "send_photo",
+            arguments: JSON.stringify({ image_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }),
+          },
+        },
+      ],
+    });
+    assert.equal(d.imageId, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   });
 });
 
@@ -131,7 +155,12 @@ describe("assistantTextContent", () => {
   it("joins string or text parts", () => {
     assert.equal(assistantTextContent({ content: "hi" }), "hi");
     assert.equal(
-      assistantTextContent({ content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] }),
+      assistantTextContent({
+        content: [
+          { type: "text", text: "a" },
+          { type: "text", text: "b" },
+        ],
+      }),
       "ab",
     );
   });

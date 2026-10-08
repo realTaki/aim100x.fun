@@ -14,16 +14,24 @@ import {
   resolveNotionThumbUrl,
   type NotionLibraryImage,
 } from "@/lib/notion-images";
-import { loadIdolCatalog } from "@/lib/idol-catalog.server";
 import type { ImageContentRating } from "@/lib/image-content-rating";
 import { mediaUrlForId } from "@/lib/idol-overlay";
 import { isNotionPageId, isThumbImage, normalizeMediaId } from "@/lib/media-app-id";
-import { imageIdFromUrl, mergeLibraryImageRows, unusedChatImages, type ImageRow } from "@/lib/library-rows";
+import {
+  imageIdFromUrl,
+  mergeLibraryImageRows,
+  unusedChatImages,
+  type ImageRow,
+} from "@/lib/library-rows";
 
 export const SCENE_IMAGE_CAP = 100;
 export const SCENE_STAY_LIMIT = 20;
 export type { ImageRow };
 export { imageIdFromUrl, mergeLibraryImageRows };
+
+async function loadIdolCatalog() {
+  return (await import("@/lib/idol-catalog.server")).loadIdolCatalog();
+}
 
 /** Warm chain + Images Notion catalog cache. */
 export async function ensureSeedLibrary() {
@@ -48,11 +56,9 @@ async function listLibraryRows(
   sceneIdFilter?: string,
   sceneQuery?: string,
 ): Promise<ImageRow[]> {
-  const library = notionImagesConfigured()
-    ? await fetchNotionLibraryImages(tokenId)
-    : [];
+  const library = notionImagesConfigured() ? await fetchNotionLibraryImages(tokenId) : [];
   let notion = library
-    .filter((img) => !isThumbImage(img) && img.type !== "face" && img.type !== "banner")
+    .filter((img) => !isThumbImage(img) && !["face", "banner", "cover"].includes(img.type))
     .map((img) => notionImageToRow(img, tokenId));
   if (sceneIdFilter) {
     const ranked = filterAndRankBucketCandidates(
@@ -122,8 +128,7 @@ export async function listUnusedImages(input: {
 export function matchImageByHint(free: ImageRow[], sceneId: string, hint: string) {
   const ranked = [...free].sort(
     (a, b) =>
-      scoreRow(b, sceneId, hint) - scoreRow(a, sceneId, hint) ||
-      (a.scene_id === sceneId ? -1 : 1),
+      scoreRow(b, sceneId, hint) - scoreRow(a, sceneId, hint) || (a.scene_id === sceneId ? -1 : 1),
   );
   return ranked[0];
 }

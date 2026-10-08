@@ -44,10 +44,7 @@ export function normalizeWalletAddress(wallet: string): `0x${string}` | null {
   return trimmed as `0x${string}`;
 }
 
-export async function isWalletIdolManager(
-  wallet: string,
-  tokenId: number,
-): Promise<boolean> {
+export async function isWalletIdolManager(wallet: string, tokenId: number): Promise<boolean> {
   const normalized = normalizeWalletAddress(wallet);
   if (!normalized) return false;
   const owner = await fetchIdolTokenOwnerServer(tokenId);
@@ -77,10 +74,7 @@ async function fetchMintSlot(wallet: Address): Promise<ManagerHub["nextAmateur"]
   }
 }
 
-export async function loadOwnedIdolsForWallet(
-  wallet: string,
-  force = false,
-): Promise<Idol[]> {
+export async function loadOwnedIdolsForWallet(wallet: string, force = false): Promise<Idol[]> {
   const hub = await loadManagerHub(wallet, force);
   return hub.owned;
 }
@@ -114,4 +108,13 @@ export async function loadManagedIdolForWallet(
   const owner = token.owner ?? (await fetchIdolTokenOwnerServer(token.tokenId));
   if (owner?.toLowerCase() !== normalized.toLowerCase()) return null;
   return catalog.idols.find((i) => i.tokenId === tokenId) ?? null;
+}
+
+/** Private configuration reads/writes require the current external-wallet owner. */
+export async function requireIdolManager(tokenId: number, userId: string, bearerToken?: string) {
+  const { getSessionUser } = await import("./auth/verify.server");
+  const user = await getSessionUser(bearerToken);
+  if (!user || user.id !== userId || !(await isWalletIdolManager(user.id, tokenId)))
+    throw new Error("Not the idol manager");
+  return user.id as Address;
 }

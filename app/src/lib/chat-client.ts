@@ -20,7 +20,13 @@ import {
   type ChatMsg,
   type ChatThread,
 } from "@/lib/thread";
-import { chatSessionKey, endChatSend, getChatSendSnapshot, peekLiveThread, publishLiveThread } from "@/lib/chat-send-lock";
+import {
+  chatSessionKey,
+  endChatSend,
+  getChatSendSnapshot,
+  peekLiveThread,
+  publishLiveThread,
+} from "@/lib/chat-send-lock";
 import { isUnauthorized } from "@/lib/utils";
 import { hobbyServerFnFetch } from "@/lib/chat-hobby";
 import {
@@ -29,15 +35,11 @@ import {
   saveLocalThread,
   searchLocalMessages,
 } from "@/lib/chat-store/client";
-import {
-  localChatUserId,
-  localChatUserIdLookupKeys,
-} from "@/lib/chat-store/user-key";
+import { localChatUserId, localChatUserIdLookupKeys } from "@/lib/chat-store/user-key";
 import { adoptThreadGeneration } from "@/lib/chat-store/generation";
 import {
   attachChatImage as attachChatImageServer,
   bootstrapThreadChoices,
-  generateNewPhotos as generateNewPhotosServer,
   sendChat as sendChatServer,
 } from "@/lib/data";
 import { uid } from "@/lib/utils";
@@ -46,13 +48,13 @@ import { resolveConnectedWallet } from "@/lib/subscribe/connected-wallet";
 import { isFanOfTokenId } from "@/lib/subscribe/fan-status-client";
 import { readUserProfileAlongKeys } from "@/lib/user-profile/local";
 import { passkeyRecordForAddress } from "@/lib/auth/passkey-record";
-import { readBrowserLocale } from "@/lib/locale";
+import { readPreferredLocale } from "@/lib/locale";
 import { localizeOpening } from "@/lib/ai";
 import { idolName } from "@/lib/idol-fields";
 
 function localeForUser(user: AppUser): string {
   const stored = readUserProfileAlongKeys(localChatUserIdLookupKeys(user)).profile.locale.trim();
-  return stored || readBrowserLocale();
+  return readPreferredLocale(stored);
 }
 
 function fanPromptProfile(user: AppUser): { username?: string; bio?: string; locale?: string } {
@@ -134,10 +136,7 @@ export async function persistChatThread(
 }
 
 /** After subscribe: create the idol OPFS thread with 欢迎词 then scene opening. */
-export async function persistNewSubscriberThread(
-  user: AppUser,
-  idol: Idol,
-): Promise<void> {
+export async function persistNewSubscriberThread(user: AppUser, idol: Idol): Promise<void> {
   const tokenKey = String(idol.tokenId);
   const loaded = await loadLocalThreadForUser(user, tokenKey);
   if (loaded.thread) return;
@@ -259,10 +258,12 @@ export async function getThreadForUser(
     Boolean(existing) &&
     thread.messages.some((m) => m.error) &&
     !existing!.messages.some((m) => m.error);
-  const droppedSeed =
-    existing != null && existing.messages.length !== thread.messages.length;
+  const droppedSeed = existing != null && existing.messages.length !== thread.messages.length;
   const chipsChanged =
-    threadChoices(thread).join("\0") !== threadChoices(existing ?? { choicesByChapter: {}, chapter: thread.chapter } as ChatThread).join("\0");
+    threadChoices(thread).join("\0") !==
+    threadChoices(
+      existing ?? ({ choicesByChapter: {}, chapter: thread.chapter } as ChatThread),
+    ).join("\0");
   if (!existing || !existingHadChips || danglingFixed || chipsChanged || droppedSeed) {
     await saveLocalThread(storageUserId, tokenKey, thread);
   }
@@ -286,9 +287,6 @@ export async function sendChatForUser(
       imageId?: string;
       wantVoice?: boolean;
       voiceText?: string;
-      generatePhotos?: boolean;
-      photoPrompt?: string;
-      photoTags?: string;
       fallback?: boolean;
       thread: ChatThread;
     }
@@ -314,7 +312,9 @@ export async function sendChatForUser(
     await saveLocalThread(storageUserId, String(idol.tokenId), kept);
     return {
       ok: true as const,
-      userMessage: kept.messages.find((m) => m.role === "user" && m.content === content.trim()) ?? optimistic.messages.at(-1)!,
+      userMessage:
+        kept.messages.find((m) => m.role === "user" && m.content === content.trim()) ??
+        optimistic.messages.at(-1)!,
       reply: kept.messages.find((m) => m.error)?.content ?? "",
       assistantMessage: kept.messages.find((m) => m.error)!,
       choices: kept.choicesByChapter[kept.chapter] ?? [],
@@ -409,9 +409,6 @@ export async function sendChatForUser(
     wantImage: result.wantImage,
     wantVoice: result.wantVoice,
     voiceText: result.voiceText,
-    generatePhotos: result.generatePhotos,
-    photoPrompt: result.photoPrompt,
-    photoTags: result.photoTags,
     thread: kept,
   };
 }
@@ -421,7 +418,9 @@ export async function attachChatImageForUser(
   idol: Idol,
   thread: ChatThread,
   input: { reply: string; chapter: number; imageId?: string },
-): Promise<{ ok: true; imageMessage?: ChatMsg; thread: ChatThread } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; imageMessage?: ChatMsg; thread: ChatThread } | { ok: false; error: string }
+> {
   const storageUserId = localChatUserId(user);
   const history = thread.messages
     .filter((m) => m.role === "user" || m.role === "assistant")
@@ -430,7 +429,7 @@ export async function attachChatImageForUser(
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
   const threadImageIds = thread.messages
-    .map((m) => (m.imageUrl ? imageIdFromUrl(m.imageUrl) : undefined))
+    .map((m) => m.imageId ?? (m.imageUrl ? imageIdFromUrl(m.imageUrl) : undefined))
     .filter((id): id is string => Boolean(id));
 
   const fanWallet = await resolveConnectedWallet(user);
@@ -478,47 +477,20 @@ export async function attachChatImageForUser(
   };
 }
 
-export const GENERATE_PHOTO_JOBS = 1;
-
-export async function generateNewPhotosForUser(
-  user: AppUser,
-  idol: Idol,
-  thread: ChatThread,
-  generation?: { prompt?: string; tags?: string },
-): Promise<void> {
-  const history = thread.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .filter((m) => !m.error && m.content.trim())
-    .slice(-36)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-  const fanWallet = await resolveConnectedWallet(user);
-  const payload = {
-    tokenId: idol.tokenId,
-    sceneId: thread.sceneId,
-    history,
-    fanWallet: fanWallet ?? undefined,
-    prompt: generation?.prompt,
-    tags: generation?.tags,
-  };
-  await Promise.all(
-    Array.from({ length: GENERATE_PHOTO_JOBS }, (_, variation) =>
-      generateNewPhotosServer({ data: { ...payload, variation } }).catch(() => undefined),
-    ),
-  );
-}
-
 export async function attachChatVoiceForUser(
   user: AppUser,
   thread: ChatThread,
-  input: { spoken: string; chapter: number; voiceId: string; tokenId: number },
-): Promise<{ ok: true; voiceMessage?: ChatMsg; thread: ChatThread } | { ok: false; error: string }> {
+  input: { spoken: string; chapter: number; tokenId: number },
+): Promise<
+  { ok: true; voiceMessage?: ChatMsg; thread: ChatThread } | { ok: false; error: string }
+> {
   const spoken = input.spoken.trim().slice(0, 280);
   if (!spoken) return { ok: true, thread };
   const { speakText } = await import("@/lib/ai");
   let audio: { ok: true; audioBase64: string } | { ok: false };
   try {
     audio = await Promise.race([
-      speakText({ data: { text: spoken, voiceId: input.voiceId } }),
+      speakText({ data: { text: spoken, tokenId: input.tokenId } }),
       new Promise<{ ok: false }>((resolve) => {
         window.setTimeout(() => resolve({ ok: false }), 20_000);
       }),

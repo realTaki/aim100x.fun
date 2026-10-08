@@ -15,6 +15,7 @@ export type AppUser = {
   profileImageUrl: string | null;
   isDevFallback: boolean;
   embedded?: boolean;
+  apiWalletAddress?: `0x${string}`;
 };
 
 export const DEV_USER: AppUser = {
@@ -47,6 +48,7 @@ function appUserFromRow(row: WalletSessionRow): AppUser {
     profileImageUrl: null,
     isDevFallback: false,
     embedded: row.embedded === true,
+    apiWalletAddress: row.walletAddress as `0x${string}` | undefined,
   };
   cached = { id: row.id, user };
   return user;
@@ -75,7 +77,7 @@ function useWalletSessionState(): CurrentUserState {
     if (resumeStarted) return;
     resumeStarted = true;
     void resumeConnectedWalletSession().catch(() => {
-      /* snapshot already hydrated from localStorage; a flaky /get-session must not log out */
+      /* resumeConnectedWalletSession publishes null when the server cannot verify a session */
     });
   }, []);
 

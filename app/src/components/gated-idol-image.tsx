@@ -1,3 +1,4 @@
+import { authorizedMediaUrl } from "@/lib/chat-image-checkout";
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 import { Lock } from "lucide-react";
 import { ActionGlyphIcon } from "@/components/action-glyph-button";
@@ -19,7 +20,10 @@ type GatedIdolImageProps = {
   thumbSrc?: string;
   /** Swap the visible img to full after load. Default off; full goes to cache. */
   upgrade?: boolean;
-} & Pick<ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "loading" | "decoding" | "fetchPriority" | "onLoad" | "alt">;
+} & Pick<
+  ImgHTMLAttributes<HTMLImageElement>,
+  "width" | "height" | "loading" | "decoding" | "fetchPriority" | "onLoad" | "alt"
+>;
 
 export function GatedIdolImage({
   src,
@@ -33,7 +37,9 @@ export function GatedIdolImage({
   alt = "",
   ...imgProps
 }: GatedIdolImageProps) {
-  const preview = thumb ? (thumbSrc || thumbUrl(src)) : src;
+  src = authorizedMediaUrl(src);
+  if (thumbSrc) thumbSrc = authorizedMediaUrl(thumbSrc);
+  const preview = thumb ? thumbSrc || thumbUrl(src) : src;
   const [displaySrc, setDisplaySrc] = useState(preview);
 
   useEffect(() => {

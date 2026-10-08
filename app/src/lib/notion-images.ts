@@ -1,22 +1,24 @@
-/** Shared idol photo library in the owner's Notion. Chat rows only store links. */
-
+/** R2/Neon photo library. Legacy export names and UUIDs preserve existing links. */
+import { createHash, randomUUID } from "node:crypto";
 import type { ImageContentRating } from "@/lib/image-content-rating";
-import { NOTION_IMAGE_CONTENT_RATING_PROPERTY } from "@/lib/image-content-rating";
 import type { NotionSeedImage } from "@/lib/idol-overlay";
-import {
-  NOTION_IMAGE_SCENE_PROPERTY,
-  NOTION_IMAGE_TAGS_PROPERTY,
-  NOTION_IMAGE_THUMBNAIL_PROPERTY,
-  NOTION_IMAGE_TOKEN_ID_PROPERTY,
-  NOTION_IMAGE_TYPE_PROPERTY,
-} from "@/lib/notion-image-schema";
 import { downscaleJpeg } from "@/lib/image-thumb.server";
 import { slotWritesThumbnail } from "@/lib/image-aspect";
 import {
   dashedNotionPageId,
+  isNotionPageId,
   isThumbImage,
   splitTagNames,
 } from "@/lib/media-app-id";
+import {
+  MEDIA_COLLECTION_SCOPE,
+  MEDIA_OBJECT_PREFIX,
+  mediaStorageConfigured,
+  mediaSql,
+  putMediaObject,
+  deleteMediaObject,
+  signedMediaUrl,
+} from "./media-storage.server.ts";
 
 export type NotionLibraryImage = {
   pageId: string;
@@ -32,59 +34,37 @@ export type NotionLibraryImage = {
   thumbnailUrl?: string;
 };
 
-export const NOTION_HUB_PAGE_ID = "NOTION_PAGE_ID_REMOVED";
-export const NOTION_IMAGES_DATABASE_ID = "NOTION_DATABASE_ID_REMOVED";
-
-const NOTION_VERSION = "2022-06-28";
-const API = "https://api.notion.com/v1";
-
-function notionToken(): string | undefined {
-  const fromEnv = process.env.NOTION_TOKEN?.trim();
-  return fromEnv || undefined;
+export const notionImagesConfigured = mediaStorageConfigured;
+export function imageDigest(bytes: Buffer) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
-
-export function notionImagesConfigured(): boolean {
-  return Boolean(notionToken());
+function imageId(id: string) {
+  if (!isNotionPageId(id)) throw new Error("Invalid media ID");
+  return dashedNotionPageId(id);
 }
-
-function headers(json = true): HeadersInit {
-  const token = notionToken();
-  if (!token) throw new Error("NOTION_TOKEN is not set");
+function tagNames(tags: string | string[]) {
+  return [
+    ...new Set(
+      (Array.isArray(tags) ? tags : splitTagNames(tags))
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ]
+    .slice(0, 20)
+    .join(", ");
+}
+function imageRow(row: Record<string, unknown>): NotionLibraryImage {
   return {
-    Authorization: `Bearer ${token}`,
-    "Notion-Version": NOTION_VERSION,
-    ...(json ? { "Content-Type": "application/json" } : {}),
+    pageId: String(row.id),
+    tokenId: Number(row.token_id),
+    scene: String(row.scene),
+    tags: String(row.tags),
+    prompt: String(row.prompt),
+    type: String(row.type),
+    contentRating: row.content_rating as ImageContentRating | "",
+    lastEdited: new Date(String(row.updated_at)).toISOString(),
+    hasThumbnail: Boolean(row.thumbnail_key),
   };
-}
-
-function tagNamesFromInput(tags: string | string[]): string[] {
-  const raw = Array.isArray(tags) ? tags : splitTagNames(tags);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const tag of raw) {
-    const name = tag.trim();
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
-    if (out.length >= 20) break;
-  }
-  return out;
-}
-
-function humanImageTitle(input: {
-  tokenId: number;
-  sceneId: string;
-  type: string;
-}): string {
-  const scene = input.sceneId.trim() || "photo";
-  if (input.type === "face") return `${input.tokenId} · avatar`.slice(0, 80);
-  if (input.type === "banner") return `${input.tokenId} · banner`.slice(0, 80);
-  if (input.type === "cover" && scene === "profile") {
-    return `${input.tokenId} · cover`.slice(0, 80);
-  }
-  return `${input.tokenId} · ${scene}`.slice(0, 80);
 }
 
 export async function publishIdolImage(input: {
@@ -96,69 +76,38 @@ export async function publishIdolImage(input: {
   contentRating: ImageContentRating;
   bytes: Buffer;
   mime: string;
-  /** Notion Images `Type` select (face, cover, banner, photo, generated). */
   type?: string;
-  /** Cover-album / avatar low-res file on the same page (`Thumbnail`). */
   thumbBytes?: Buffer;
 }): Promise<{ pageId: string } | null> {
-  if (!notionToken()) return null;
-  const type = input.type ?? "photo";
-  const filename = `${input.tokenId}-${input.sceneId}-${input.fileSuffix}.jpg`;
-  const imageFile = await uploadNotionFile(filename, input.bytes, input.mime);
-  if (!imageFile) return null;
-  let thumbBytes = input.thumbBytes;
-  if (!thumbBytes) {
-    thumbBytes =
-      input.bytes.length < 80_000 ? input.bytes : ((await downscaleJpeg(input.bytes)) ?? input.bytes);
+  if (!mediaStorageConfigured()) throw new Error("R2/Neon media storage is not configured");
+  const id = randomUUID();
+  const imageKey = `${MEDIA_OBJECT_PREFIX}/${id}/${randomUUID()}`;
+  const thumbKey = `${MEDIA_OBJECT_PREFIX}/${id}/${randomUUID()}`;
+  const downscaled =
+    !input.thumbBytes && input.bytes.length >= 80_000 ? await downscaleJpeg(input.bytes) : null;
+  const thumbnail = input.thumbBytes ?? downscaled ?? input.bytes;
+  const thumbnailMime = input.thumbBytes || downscaled ? "image/jpeg" : input.mime;
+  const uploaded: string[] = [];
+  let metadataWriteStarted = false;
+  try {
+    await putMediaObject(imageKey, input.bytes, input.mime);
+    uploaded.push(imageKey);
+    await putMediaObject(thumbKey, thumbnail, thumbnailMime);
+    uploaded.push(thumbKey);
+    metadataWriteStarted = true;
+    await mediaSql()`INSERT INTO aim_idol_media
+      (collection_scope, id, token_id, scene, tags, prompt, type, content_rating, image_key, thumbnail_key, mime, image_sha256, thumbnail_sha256)
+      VALUES (${MEDIA_COLLECTION_SCOPE}, ${id}, ${input.tokenId}, ${input.sceneId.trim() || "chat"}, ${tagNames(input.tags)}, ${input.prompt},
+      ${input.type ?? "photo"}, ${input.contentRating}, ${imageKey}, ${thumbKey}, ${input.mime}, ${imageDigest(input.bytes)}, ${imageDigest(thumbnail)})`;
+  } catch (error) {
+    // A database timeout can occur after commit. Retain files in that case.
+    if (!metadataWriteStarted) await Promise.allSettled(uploaded.map(deleteMediaObject));
+    throw error;
   }
-
-  const title = humanImageTitle({
-    tokenId: input.tokenId,
-    sceneId: input.sceneId,
-    type,
-  });
-  const properties: Record<string, unknown> = {
-    Name: { title: [{ type: "text", text: { content: title } }] },
-    [NOTION_IMAGE_SCENE_PROPERTY]: {
-      select: { name: input.sceneId.trim() || "chat" },
-    },
-    [NOTION_IMAGE_TOKEN_ID_PROPERTY]: { number: input.tokenId },
-    [NOTION_IMAGE_TAGS_PROPERTY]: {
-      multi_select: tagNamesFromInput(input.tags).map((name) => ({ name })),
-    },
-    Prompt: {
-      rich_text: [{ type: "text", text: { content: input.prompt.slice(0, 1900) } }],
-    },
-    [NOTION_IMAGE_TYPE_PROPERTY]: { select: { name: type } },
-    [NOTION_IMAGE_CONTENT_RATING_PROPERTY]: {
-      select: { name: input.contentRating },
-    },
-    Image: { files: [imageFile] },
-  };
-  if (thumbBytes) {
-    const thumbName = `${input.tokenId}-${input.sceneId}-thumb.jpg`;
-    const thumbFile = await uploadNotionFile(thumbName, thumbBytes, "image/jpeg");
-    if (thumbFile) {
-      properties[NOTION_IMAGE_THUMBNAIL_PROPERTY] = { files: [thumbFile] };
-    }
-  }
-  const res = await fetch(`${API}/pages`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      parent: { database_id: NOTION_IMAGES_DATABASE_ID },
-      properties,
-    }),
-  });
-  if (!res.ok) return null;
-  const page = (await res.json()) as { id?: string };
-  const pageId = page.id;
-  if (!pageId) return null;
   invalidateNotionLibraryCache();
-  return { pageId };
+  return { pageId: id };
 }
 
-/** Profile bucket (`profile` scene): avatar, banner, or cover-album row — never stored on-chain. */
 export async function publishIdolProfileImage(input: {
   tokenId: number;
   kind: "avatar" | "cover" | "banner";
@@ -166,57 +115,30 @@ export async function publishIdolProfileImage(input: {
   mime: string;
   contentRating?: ImageContentRating;
   thumbBytes?: Buffer;
-}): Promise<{ pageId: string } | null> {
-  const suffix =
-    input.kind === "avatar"
-      ? "avatar"
-      : input.kind === "banner"
-        ? "banner"
-        : `${Date.now().toString(36)}:cover`;
-  const type =
-    input.kind === "avatar" ? "face" : input.kind === "banner" ? "banner" : "cover";
-  let thumbBytes: Buffer | undefined;
-  if (slotWritesThumbnail(input.kind)) {
-    const source = input.thumbBytes ?? input.bytes;
-    thumbBytes =
-      source.length < 80_000 ? source : ((await downscaleJpeg(source)) ?? source);
-  }
+}) {
+  const source = input.thumbBytes ?? input.bytes;
+  const thumbnail = slotWritesThumbnail(input.kind)
+    ? source.length < 80_000
+      ? source
+      : ((await downscaleJpeg(source)) ?? source)
+    : undefined;
   return publishIdolImage({
-    tokenId: input.tokenId,
+    ...input,
     sceneId: "profile",
-    fileSuffix: suffix,
+    fileSuffix: input.kind,
     prompt: `manager profile ${input.kind}`,
     tags: input.kind,
     contentRating: input.contentRating ?? "SFW",
-    bytes: input.bytes,
-    mime: input.mime,
-    type,
-    thumbBytes,
+    type: input.kind === "avatar" ? "face" : input.kind,
+    thumbBytes: thumbnail,
   });
 }
 
 export async function setNotionImageType(pageId: string, type: string): Promise<boolean> {
-  if (!notionToken() || !pageId) return false;
-  const res = await fetch(`${API}/pages/${pageId}`, {
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify({
-      properties: { [NOTION_IMAGE_TYPE_PROPERTY]: { select: { name: type } } },
-    }),
-  });
-  if (!res.ok) return false;
+  const rows = await mediaSql()`UPDATE aim_idol_media SET type = ${type}, updated_at = now()
+    WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${imageId(pageId)} AND archived_at IS NULL RETURNING id`;
   invalidateNotionLibraryCache();
-  return true;
-}
-
-async function downloadUrlBytes(url: string): Promise<Buffer | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
-  } catch {
-    return null;
-  }
+  return rows.length > 0;
 }
 
 export async function ensureAlbumThumbnail(input: {
@@ -227,50 +149,32 @@ export async function ensureAlbumThumbnail(input: {
   replaceExisting?: boolean;
 }): Promise<void> {
   if (input.hasThumbnail && !input.replaceExisting) return;
-  let bytes = input.bytes ?? null;
-  if (!bytes) {
+  let source = input.bytes;
+  if (!source) {
     const urls = await resolveNotionMediaUrls(input.pageId);
     if (urls.thumbnail && !input.replaceExisting) return;
-    if (urls.image) bytes = await downloadUrlBytes(urls.image);
+    if (!urls.image) return;
+    const response = await fetch(urls.image);
+    if (!response.ok) throw new Error("R2 image download failed");
+    source = Buffer.from(await response.arrayBuffer());
   }
-  if (!bytes) return;
-  const thumbBytes =
-    input.bytes && input.bytes.length < 80_000
-      ? input.bytes
-      : ((await downscaleJpeg(bytes)) ?? bytes);
-  await replaceNotionPageFile({
-    pageId: input.pageId,
-    property: NOTION_IMAGE_THUMBNAIL_PROPERTY,
-    bytes: thumbBytes,
-    mime: "image/jpeg",
-    filename: `${input.tokenId}-thumb.jpg`,
-  });
+  const thumbnail = source.length < 80_000 ? source : ((await downscaleJpeg(source)) ?? source);
+  await replaceFile(input.pageId, thumbnail, "image/jpeg", true);
 }
 
 export async function clearNotionPageThumbnail(pageId: string): Promise<boolean> {
-  if (!notionToken() || !pageId) return false;
-  const res = await fetch(`${API}/pages/${dashedNotionPageId(pageId)}`, {
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify({
-      properties: { [NOTION_IMAGE_THUMBNAIL_PROPERTY]: { files: [] } },
-    }),
-  });
-  if (!res.ok) return false;
+  // Detach only; retaining prior objects makes concurrent readers and recovery safe.
+  const rows =
+    await mediaSql()`UPDATE aim_idol_media SET thumbnail_key = NULL, thumbnail_sha256 = NULL, updated_at = now()
+    WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${imageId(pageId)} AND archived_at IS NULL RETURNING id`;
   invalidateNotionLibraryCache();
-  return true;
+  return rows.length > 0;
 }
-
-export async function unflagCoverAlbumRows(
-  rows: { pageId: string }[],
-): Promise<number> {
+export async function unflagCoverAlbumRows(rows: { pageId: string }[]): Promise<number> {
   let n = 0;
-  for (const row of rows) {
-    if (await setNotionImageType(row.pageId, "photo")) n += 1;
-  }
+  for (const row of rows) if (await setNotionImageType(row.pageId, "photo")) n++;
   return n;
 }
-
 export async function flagPoolRowAsCover(row: NotionLibraryImage): Promise<boolean> {
   if (isThumbImage(row) || row.type === "face" || row.type === "banner") return false;
   if (!(await setNotionImageType(row.pageId, "cover"))) return false;
@@ -282,280 +186,97 @@ export async function flagPoolRowAsCover(row: NotionLibraryImage): Promise<boole
   return true;
 }
 
-export async function resolveNotionMediaUrls(
-  pageId: string,
-): Promise<{ image?: string; thumbnail?: string }> {
-  if (!notionToken() || !pageId) return {};
-  const res = await fetch(`${API}/pages/${dashedNotionPageId(pageId)}`, {
-    headers: headers(),
-  });
-  if (!res.ok) return {};
-  const page = (await res.json()) as { properties?: Record<string, unknown> };
+export async function resolveNotionMediaUrls(pageId: string): Promise<{
+  image?: string;
+  thumbnail?: string;
+  chatPaywalled?: boolean;
+  tokenId?: number;
+}> {
+  if (!isNotionPageId(pageId)) return {};
+  const [row] =
+    await mediaSql()`SELECT token_id, image_key, thumbnail_key, content_rating, type FROM aim_idol_media
+    WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${imageId(pageId)} AND archived_at IS NULL`;
+  if (!row) return {};
   return {
-    image: filesUrlFromProperty(page.properties, "Image"),
-    thumbnail: filesUrlFromProperty(page.properties, NOTION_IMAGE_THUMBNAIL_PROPERTY),
+    tokenId: Number(row.token_id),
+    image: await signedMediaUrl(row.image_key),
+    thumbnail: row.thumbnail_key ? await signedMediaUrl(row.thumbnail_key) : undefined,
+    chatPaywalled: row.content_rating === "NSFW" && !["face", "banner", "cover"].includes(row.type),
   };
 }
-
-export async function resolveNotionImageUrl(pageId: string): Promise<string | undefined> {
+export async function resolveNotionImageUrl(pageId: string) {
   return (await resolveNotionMediaUrls(pageId)).image;
 }
-
-export async function resolveNotionThumbUrl(pageId: string): Promise<string | undefined> {
+export async function resolveNotionThumbUrl(pageId: string) {
   const urls = await resolveNotionMediaUrls(pageId);
   return urls.thumbnail || urls.image;
 }
-
-async function createFileUpload(filename: string, mime: string): Promise<string | null> {
-  const res = await fetch(`${API}/file_uploads`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      mode: "single_part",
-      filename,
-      content_type: mime || "image/jpeg",
-    }),
-  });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { id?: string };
-  return body.id ?? null;
-}
-
-async function sendFileUpload(
-  uploadId: string,
-  filename: string,
-  bytes: Buffer,
-  mime: string,
-): Promise<boolean> {
-  const form = new FormData();
-  form.set("file", new Blob([new Uint8Array(bytes)], { type: mime || "image/jpeg" }), filename);
-  const res = await fetch(`${API}/file_uploads/${uploadId}/send`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${notionToken()}`,
-      "Notion-Version": NOTION_VERSION,
-    },
-    body: form,
-  });
-  return res.ok;
-}
-
-async function uploadNotionFile(
-  filename: string,
-  bytes: Buffer,
-  mime: string,
-): Promise<{ type: "file_upload"; file_upload: { id: string }; name: string } | null> {
-  const uploadId = await createFileUpload(filename, mime);
-  if (!uploadId) return null;
-  const sent = await sendFileUpload(uploadId, filename, bytes, mime);
-  if (!sent) return null;
-  return { type: "file_upload", file_upload: { id: uploadId }, name: filename };
-}
-
-function filesUrlFromProperty(
-  properties: Record<string, unknown> | undefined,
-  name: string,
-) {
-  if (!properties) return undefined;
-  const image = properties[name] as
-    | {
-        files?: {
-          file?: { url?: string };
-          external?: { url?: string };
-        }[];
-      }
-    | undefined;
-  const file = image?.files?.[0];
-  return file?.file?.url || file?.external?.url;
-}
-
-type NotionQueryPage = {
-  id?: string;
-  properties?: Record<string, unknown>;
-  last_edited_time?: string;
-};
-
-async function queryDatabase(
-  databaseId: string,
-  filter?: Record<string, unknown>,
-): Promise<NotionQueryPage[]> {
-  if (!notionToken()) return [];
-  const out: NotionQueryPage[] = [];
-  let cursor: string | undefined;
-  do {
-    const res = await fetch(`${API}/databases/${databaseId}/query`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        page_size: 100,
-        start_cursor: cursor,
-        ...(filter ? { filter } : {}),
-      }),
-    });
-    if (!res.ok) return out;
-    const body = (await res.json()) as {
-      results?: NotionQueryPage[];
-      has_more?: boolean;
-      next_cursor?: string | null;
-    };
-    out.push(...(body.results ?? []));
-    cursor = body.has_more && body.next_cursor ? body.next_cursor : undefined;
-  } while (cursor);
-  return out;
-}
-
-function numberFromProperty(prop: unknown): number | null {
-  if (!prop || typeof prop !== "object") return null;
-  const p = prop as { type?: string; number?: number | null };
-  if (p.type === "number" && typeof p.number === "number" && p.number > 0) {
-    return Math.trunc(p.number);
-  }
-  return null;
-}
-
-function plainText(prop: unknown): string {
-  if (!prop || typeof prop !== "object") return "";
-  const p = prop as {
-    type?: string;
-    title?: { plain_text?: string }[];
-    rich_text?: { plain_text?: string }[];
-    select?: { name?: string };
-  };
-  if (p.type === "select") return p.select?.name ?? "";
-  const bits = p.title ?? p.rich_text ?? [];
-  return bits.map((b) => b.plain_text ?? "").join("");
-}
-
-function filesHasValue(prop: unknown): boolean {
-  if (!prop || typeof prop !== "object") return false;
-  const p = prop as { files?: unknown[] };
-  return Array.isArray(p.files) && p.files.length > 0;
-}
-
-function tagsFromProperty(prop: unknown): string {
-  if (!prop || typeof prop !== "object") return "";
-  const p = prop as {
-    type?: string;
-    multi_select?: { name?: string }[];
-  };
-  if (p.type === "multi_select") {
-    return (p.multi_select ?? [])
-      .map((o) => o.name ?? "")
-      .filter(Boolean)
-      .join(", ");
-  }
-  return plainText(prop);
-}
-
-function parseImagePage(page: NotionQueryPage): NotionLibraryImage | null {
-  if (!page.id || !page.properties) return null;
-  const title = plainText(page.properties.Name).toLowerCase();
-  if (title.includes("probe")) return null;
-  const tokenId = numberFromProperty(page.properties[NOTION_IMAGE_TOKEN_ID_PROPERTY]);
-  if (tokenId === null) return null;
-  const scene = plainText(page.properties[NOTION_IMAGE_SCENE_PROPERTY]).trim();
-  if (!scene) return null;
-  const type = plainText(page.properties[NOTION_IMAGE_TYPE_PROPERTY]);
-  return {
-    pageId: page.id,
-    tokenId,
-    scene,
-    tags: tagsFromProperty(page.properties[NOTION_IMAGE_TAGS_PROPERTY]),
-    prompt: plainText(page.properties.Prompt),
-    type,
-    contentRating: (() => {
-      const raw = plainText(page.properties[NOTION_IMAGE_CONTENT_RATING_PROPERTY]).trim();
-      return raw === "SFW" || raw === "NSFW" ? raw : "";
-    })(),
-    lastEdited: page.last_edited_time,
-    hasThumbnail: filesHasValue(page.properties[NOTION_IMAGE_THUMBNAIL_PROPERTY]),
-    imageUrl: filesUrlFromProperty(page.properties, "Image"),
-    thumbnailUrl: filesUrlFromProperty(page.properties, NOTION_IMAGE_THUMBNAIL_PROPERTY),
-  };
-}
-
 export async function archiveNotionImagePages(pageIds: string[]): Promise<number> {
-  if (!notionToken() || pageIds.length === 0) return 0;
-  let archived = 0;
+  let n = 0;
   for (const pageId of pageIds) {
-    const res = await fetch(`${API}/pages/${dashedNotionPageId(pageId)}`, {
-      method: "PATCH",
-      headers: headers(),
-      body: JSON.stringify({ archived: true }),
-    });
-    if (res.ok) archived += 1;
+    const rows = await mediaSql()`UPDATE aim_idol_media SET archived_at = now(), updated_at = now()
+      WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${imageId(pageId)} AND archived_at IS NULL RETURNING id`;
+    n += rows.length;
   }
-  if (archived > 0) invalidateNotionLibraryCache();
-  return archived;
+  invalidateNotionLibraryCache();
+  return n;
 }
-
 export async function replaceNotionPageImage(input: {
   pageId: string;
   bytes: Buffer;
   mime: string;
   filename: string;
 }): Promise<boolean> {
-  return replaceNotionPageFile({ ...input, property: "Image" });
+  return replaceFile(input.pageId, input.bytes, input.mime, false);
 }
-
-async function replaceNotionPageFile(input: {
-  pageId: string;
-  property: string;
-  bytes: Buffer;
-  mime: string;
-  filename: string;
-}): Promise<boolean> {
-  if (!notionToken()) return false;
-  const file = await uploadNotionFile(input.filename, input.bytes, input.mime);
-  if (!file) return false;
-  const res = await fetch(`${API}/pages/${dashedNotionPageId(input.pageId)}`, {
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify({
-      properties: {
-        [input.property]: { files: [file] },
-      },
-    }),
-  });
-  if (!res.ok) return false;
+async function replaceFile(
+  pageId: string,
+  bytes: Buffer,
+  mime: string,
+  thumbnail: boolean,
+): Promise<boolean> {
+  const id = imageId(pageId);
+  const key = `${MEDIA_OBJECT_PREFIX}/${id}/${randomUUID()}`;
+  await putMediaObject(key, bytes, mime);
+  const sql = mediaSql();
+  const rows = thumbnail
+    ? await sql`UPDATE aim_idol_media SET thumbnail_key = ${key}, thumbnail_sha256 = ${imageDigest(bytes)}, updated_at = now()
+          WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${id} AND archived_at IS NULL RETURNING id`
+    : await sql`UPDATE aim_idol_media SET image_key = ${key}, image_sha256 = ${imageDigest(bytes)}, mime = ${mime}, updated_at = now()
+          WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${id} AND archived_at IS NULL RETURNING id`;
+  if (!rows.length) {
+    await deleteMediaObject(key);
+    return false;
+  }
   invalidateNotionLibraryCache();
   return true;
 }
 
 let libraryCache: { at: number; images: NotionLibraryImage[] } | null = null;
-
 export function invalidateNotionLibraryCache() {
   libraryCache = null;
 }
-
-export async function fetchNotionLibraryImages(tokenId?: number) {
+export async function fetchNotionLibraryImages(tokenId?: number): Promise<NotionLibraryImage[]> {
   if (!libraryCache || Date.now() - libraryCache.at > 60_000) {
-    const pages = await queryDatabase(NOTION_IMAGES_DATABASE_ID);
-    libraryCache = {
-      at: Date.now(),
-      images: pages
-        .map(parseImagePage)
-        .filter((img): img is NotionLibraryImage => Boolean(img)),
-    };
+    const rows =
+      await mediaSql()`SELECT id, token_id, scene, tags, prompt, type, content_rating, updated_at, thumbnail_key
+      FROM aim_idol_media WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND archived_at IS NULL ORDER BY updated_at DESC, id`;
+    libraryCache = { at: Date.now(), images: rows.map(imageRow) };
   }
-  const images = libraryCache.images;
-  if (tokenId === undefined) return images;
-  return images.filter((img) => img.tokenId === tokenId);
+  return tokenId === undefined
+    ? libraryCache.images
+    : libraryCache.images.filter((img) => img.tokenId === tokenId);
 }
-
 export async function fetchNotionSeedImages() {
-  const images = await fetchNotionLibraryImages();
-  return images
+  return (await fetchNotionLibraryImages())
     .filter((img) => img.type !== "generated" && !isThumbImage(img))
-    .map(
-      (img): NotionSeedImage => ({
-        pageId: img.pageId,
-        tokenId: img.tokenId,
-        scene: img.scene,
-        tags: img.tags,
-        type: img.type,
-        contentRating: img.contentRating,
-        lastEdited: img.lastEdited,
-      }),
-    );
+    .map((img): NotionSeedImage => ({
+      pageId: img.pageId,
+      tokenId: img.tokenId,
+      scene: img.scene,
+      tags: img.tags,
+      type: img.type,
+      contentRating: img.contentRating,
+      lastEdited: img.lastEdited,
+    }));
 }

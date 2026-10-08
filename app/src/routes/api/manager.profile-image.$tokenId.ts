@@ -60,7 +60,7 @@ export const Route = createFileRoute("/api/manager/profile-image/$tokenId")({
           thumbBytes,
         });
         if (!published) {
-          return json({ error: "Notion upload failed" }, 502);
+          return json({ error: "Image upload failed" }, 502);
         }
 
         await loadIdolCatalog(true);

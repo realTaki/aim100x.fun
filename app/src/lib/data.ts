@@ -17,18 +17,18 @@ import {
 } from "@/lib/library";
 import { chatCompletionTimeoutMs, chatTurnBudgetMs } from "@/lib/chat-timeout";
 
-async function isFanOf(userId: string, tokenId: number) {
+async function isFanOf(userId: string, tokenId: number, bearerToken?: string) {
   const { isFanMembershipActive } = await import("@/lib/subscribe/fan-membership.server");
-  return isFanMembershipActive(userId, tokenId);
+  return isFanMembershipActive(userId, tokenId, bearerToken);
 }
 
-async function isChatFan(fanWallet: string | undefined, userId: string, tokenId: number) {
-  const w = fanWallet?.trim();
-  if (w && /^0x[a-fA-F0-9]{40}$/i.test(w)) {
-    const { isFanForWallet } = await import("@/lib/subscribe/fan-membership.server");
-    return isFanForWallet(w, tokenId);
-  }
-  return isFanOf(userId, tokenId);
+async function isChatFan(
+  _fanWallet: string | undefined,
+  userId: string,
+  tokenId: number,
+  bearerToken?: string,
+) {
+  return isFanOf(userId, tokenId, bearerToken);
 }
 
 function raceTimeout<T>(ms: number, work: Promise<T>, fallback: T): Promise<T> {
@@ -75,7 +75,7 @@ export const getFan = createServerFn({ method: "POST" })
   .validator((input: { tokenId: number }) => input)
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
-    const isFan = await isFanOf(context.userId, data.tokenId);
+    const isFan = await isFanOf(context.userId, data.tokenId, undefined);
     return { isFan };
   });
 
@@ -92,7 +92,7 @@ export const bootstrapThreadChoices = createServerFn({ method: "POST" })
   )
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
-    const isFan = await isChatFan(data.fanWallet, context.userId, data.tokenId);
+    const isFan = await isChatFan(data.fanWallet, context.userId, data.tokenId, undefined);
     if (!isFan) {
       return { ok: false as const, choices: [] as string[] };
     }
@@ -125,8 +125,7 @@ export const sendChat = createServerFn({ method: "POST" })
       fanWallet?: string;
       fanSentVoice?: boolean;
       fan?: { username?: string; bio?: string; locale?: string };
-    }) =>
-      input,
+    }) => input,
   )
   .middleware([authMiddleware])
   .handler(
@@ -144,9 +143,6 @@ export const sendChat = createServerFn({ method: "POST" })
           imageId?: string;
           wantVoice?: boolean;
           voiceText?: string;
-          generatePhotos?: boolean;
-          photoPrompt?: string;
-          photoTags?: string;
           fallback?: boolean;
           chapter: number;
           sceneId: string;
@@ -161,12 +157,11 @@ export const sendChat = createServerFn({ method: "POST" })
 
       const thread = data.thread;
       let sceneKey = thread.sceneId || sceneIdOf(idol, thread.chapter);
-      const chapter = sceneIndex(idol, sceneKey);
 
       const isFan = await raceTimeout(
         FAN_CHECK_BUDGET_MS,
-        isChatFan(data.fanWallet, context.userId, data.tokenId),
-        true,
+        isChatFan(data.fanWallet, context.userId, data.tokenId, undefined),
+        false,
       );
       if (!isFan) {
         return { ok: false, error: "not_fan" };
@@ -250,6 +245,22 @@ export const sendChat = createServerFn({ method: "POST" })
       const voiceText = result.voiceText?.trim() || undefined;
       const restock = Boolean(result.expandLibrary && result.photoPrompt) && unused.length < 6;
 
+      if (restock) {
+        const { waitUntil } = await import("@vercel/functions");
+        const { expandSceneLibrary } = await import("@/lib/image-gen");
+        waitUntil(
+          expandSceneLibrary({
+            tokenId: data.tokenId,
+            sceneId: sceneKey,
+            messages: history.slice(-36),
+            triggerUserId: context.userId,
+            contentRating: "NSFW",
+            variation: 0,
+            prompt: result.photoPrompt,
+            tags: result.photoTags,
+          }).catch(() => undefined),
+        );
+      }
       return {
         ok: true,
         userMessage,
@@ -260,9 +271,6 @@ export const sendChat = createServerFn({ method: "POST" })
         imageId: result.imageId,
         wantVoice,
         voiceText,
-        generatePhotos: restock,
-        photoPrompt: restock ? result.photoPrompt : undefined,
-        photoTags: restock ? result.photoTags : undefined,
         chapter: chapterActive,
         sceneId: sceneKey,
         sceneImages,
@@ -302,14 +310,12 @@ export const attachChatImage = createServerFn({ method: "POST" })
     > => {
       const idol = await loadIdolByTokenId(data.tokenId);
       if (!idol) return { ok: false, error: "Unknown idol" };
-      if (!(await isChatFan(data.fanWallet, context.userId, data.tokenId))) {
+      if (!(await isChatFan(data.fanWallet, context.userId, data.tokenId, undefined))) {
         return { ok: false, error: "not_fan" };
       }
 
       const sceneId = data.sceneId || sceneIdOf(idol, data.chapter);
-      const excludeFromThread = new Set(
-        (data.threadImageIds ?? []).filter((id) => id.length > 0),
-      );
+      const excludeFromThread = new Set((data.threadImageIds ?? []).filter((id) => id.length > 0));
       const unused = await listUnusedImages({
         tokenId: data.tokenId,
         sceneId,
@@ -354,12 +360,33 @@ export const attachChatImage = createServerFn({ method: "POST" })
         role: "assistant",
         content: "",
         chapter: data.chapter,
-        imageUrl: hit.url,
+        imageId: hit.id,
+        imageUrl: hit.contentRating === "NSFW" ? undefined : hit.url,
         imageContentRating:
           hit.contentRating === "NSFW" || hit.contentRating === "SFW"
             ? hit.contentRating
             : undefined,
       };
+      if (hit.contentRating === "NSFW") {
+        const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
+        const request = getRequest();
+        const user = request ? await sessionUserFromRequest(request) : null;
+        if (!user || user.id !== context.userId || !user.loginAddress)
+          return { ok: false, error: "Prepare your wallet first" };
+        const { issueImagePayment } = await import("@/lib/chat-image-payment.server");
+        const { imagePaymentReader } = await import("./chat-image-payment.server");
+        const { idolImageUnlockPriceUsdc, usdcToAtomicString } = await import("@/lib/idol-pricing");
+        const reader = imagePaymentReader();
+        const amount = usdcToAtomicString(idolImageUnlockPriceUsdc(idol));
+        imageMessage.imagePaymentAmount = amount;
+        imageMessage.imagePaymentIntent = await issueImagePayment(user.id, {
+          imageId: hit.id,
+          tokenId: data.tokenId,
+          amount,
+          wallet: user.loginAddress,
+          fromBlock: String(await reader.getBlockNumber()),
+        });
+      }
       return {
         ok: true,
         imageMessage,
@@ -370,35 +397,94 @@ export const attachChatImage = createServerFn({ method: "POST" })
     },
   );
 
-export const generateNewPhotos = createServerFn({ method: "POST" })
+export const prepareChatImage = createServerFn({ method: "POST" })
+  .validator((input: { imageId: string; paymentIntent: string }) => {
+    if (
+      typeof input.imageId !== "string" ||
+      input.imageId.length > 160 ||
+      typeof input.paymentIntent !== "string" ||
+      input.paymentIntent.length > 4096
+    )
+      throw new Error("Invalid checkout");
+    return input;
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
+    const user = await sessionUserFromRequest(getRequest());
+    if (!user?.loginAddress || user.id !== context.userId)
+      throw new Error("Sign in with your external wallet");
+    const { prepareImagePayment } = await import("./chat-image-payment.server");
+    return prepareImagePayment(user.id, user.loginAddress, data.imageId, data.paymentIntent);
+  });
+export const unlockChatImage = createServerFn({ method: "POST" })
   .validator(
-    (input: {
-      tokenId: number;
-      sceneId: string;
-      history: { role: "user" | "assistant"; content: string }[];
-      fanWallet?: string;
-      variation?: number;
-      prompt?: string;
-      tags?: string;
-    }) => input,
+    (input: { imageId: string; paymentIntent: string; transactionHash: `0x${string}` }) => {
+      if (
+        typeof input.imageId !== "string" ||
+        input.imageId.length > 160 ||
+        typeof input.paymentIntent !== "string" ||
+        input.paymentIntent.length > 4096 ||
+        typeof input.transactionHash !== "string" ||
+        !/^0x[a-f0-9]{64}$/i.test(input.transactionHash)
+      )
+        throw new Error("Invalid checkout");
+      return input;
+    },
   )
   .middleware([authMiddleware])
-  .handler(async ({ context, data }): Promise<{ ok: true } | { ok: false; error: string }> => {
+  .handler(async ({ context, data }) => {
+    const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
+    const user = await sessionUserFromRequest(getRequest());
+    if (!user?.loginAddress || user.id !== context.userId)
+      throw new Error("Sign in with your external wallet");
+    const { settleImagePayment } = await import("./chat-image-payment.server");
+    return {
+      ok: true as const,
+      ...(await settleImagePayment(
+        user.id,
+        user.loginAddress,
+        data.imageId,
+        data.paymentIntent,
+        data.transactionHash,
+      )),
+    };
+  });
+
+export const quoteImageUnlock = createServerFn({ method: "POST" })
+  .validator((input: { tokenId: number; imageId: string; maxAmountAtomic: string }) => {
+    if (
+      !Number.isSafeInteger(input.tokenId) ||
+      input.tokenId < 1 ||
+      typeof input.imageId !== "string" ||
+      input.imageId.length > 160 ||
+      typeof input.maxAmountAtomic !== "string" ||
+      !/^\d{1,30}$/.test(input.maxAmountAtomic)
+    )
+      throw new Error("Invalid photo");
+    return input;
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
+    const user = await sessionUserFromRequest(getRequest());
+    if (!user?.loginAddress || user.id !== context.userId) throw new Error("Sign in first");
+    const { requireAvailablePaymentImage } = await import("./chat-image-availability.server");
+    await requireAvailablePaymentImage(data.imageId, data.tokenId);
     const idol = await loadIdolByTokenId(data.tokenId);
-    if (!idol) return { ok: false, error: "Unknown idol" };
-    if (!(await isChatFan(data.fanWallet, context.userId, data.tokenId))) {
-      return { ok: false, error: "not_fan" };
-    }
-    const { expandSceneLibrary } = await import("@/lib/image-gen");
-    await expandSceneLibrary({
-      tokenId: data.tokenId,
-      sceneId: data.sceneId,
-      messages: data.history.slice(-36),
-      triggerUserId: context.userId,
-      contentRating: "NSFW",
-      variation: data.variation,
-      prompt: data.prompt,
-      tags: data.tags,
-    });
-    return { ok: true };
+    if (!idol) throw new Error("Unknown idol");
+    const { idolImageUnlockPriceUsdc, usdcToAtomicString } = await import("./idol-pricing");
+    const amount = usdcToAtomicString(idolImageUnlockPriceUsdc(idol));
+    if (BigInt(amount) > BigInt(data.maxAmountAtomic))
+      throw new Error("Photo price changed. Refresh before paying.");
+    const { issueImagePayment, imagePaymentReader } = await import("./chat-image-payment.server");
+    return {
+      paymentIntent: await issueImagePayment(user.id, {
+        imageId: data.imageId,
+        tokenId: data.tokenId,
+        amount,
+        wallet: user.loginAddress,
+        fromBlock: String(await imagePaymentReader().getBlockNumber()),
+      }),
+    };
   });

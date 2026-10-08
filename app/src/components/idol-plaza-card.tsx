@@ -107,7 +107,7 @@ export function IdolPlazaCard({
         onClick={onActivate}
         aria-busy={status === "pending"}
         aria-live="polite"
-        aria-label={status === "pending" ? "支付中" : `${name}. ${bio}`}
+        aria-label={status === "pending" ? "Paying" : `${name}. ${bio}`}
         className="block w-full rounded-2xl text-left transition-transform duration-150 active:scale-[0.985] disabled:opacity-70"
       >
         {article}
@@ -116,7 +116,10 @@ export function IdolPlazaCard({
   }
 
   return (
-    <Link {...linkProps} className="block rounded-2xl transition-transform duration-150 active:scale-[0.985]">
+    <Link
+      {...linkProps}
+      className="block rounded-2xl transition-transform duration-150 active:scale-[0.985]"
+    >
       {article}
     </Link>
   );

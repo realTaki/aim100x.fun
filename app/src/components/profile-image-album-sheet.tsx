@@ -131,7 +131,7 @@ export function ProfileImageAlbumSheet({
       <LightEditSheet
         open={open}
         onOpenChange={onOpenChange}
-        title={kind === "cover" ? "封面" : kind === "banner" ? "横幅" : "头像"}
+        title={kind === "cover" ? "Cover" : kind === "banner" ? "Banner" : "Avatar"}
       >
         {selectMode ? (
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -143,13 +143,13 @@ export function ProfileImageAlbumSheet({
               }}
               className="text-sm text-muted"
             >
-              取消
+              Cancel
             </button>
             <ActionGlyphButton
               status={deleteAction.status}
               disabled={selected.size === 0}
-              idleLabel="删除"
-              pendingLabel="删除中…"
+              idleLabel="Delete"
+              pendingLabel="Deleting…"
               onClick={() =>
                 void deleteAction.run(async () => {
                   await deleteAlbumPages(tokenId, [...selected], kind);
@@ -162,7 +162,7 @@ export function ProfileImageAlbumSheet({
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-red-500/40 px-3 text-sm text-red-300 disabled:opacity-50"
             >
               <Trash2 className="size-4" />
-              删除
+              Delete
             </ActionGlyphButton>
           </div>
         ) : null}
@@ -170,7 +170,7 @@ export function ProfileImageAlbumSheet({
           <button
             type="button"
             disabled={loading || busy}
-            aria-label="上传"
+            aria-label="Upload"
             onClick={() => {
               setCropMode("upload");
               setReplacePageId(null);

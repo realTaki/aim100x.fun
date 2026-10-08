@@ -58,7 +58,12 @@ export function IdolProfileShell({
       <div className="relative">
         <div className="relative aspect-video w-full overflow-hidden bg-surface">
           {onBannerClick ? (
-            <button type="button" onClick={onBannerClick} className="size-full" aria-label="编辑横幅">
+            <button
+              type="button"
+              onClick={onBannerClick}
+              className="size-full"
+              aria-label="Edit banner"
+            >
               {banner}
             </button>
           ) : (
@@ -89,7 +94,7 @@ export function IdolProfileShell({
                 type="button"
                 onClick={onAvatarClick}
                 className="size-24 rounded-full bg-surface-2 ring-3 ring-bg"
-                aria-label="编辑头像"
+                aria-label="Edit avatar"
               />
             ) : (
               <div className="size-24 rounded-full bg-surface-2 ring-3 ring-bg" />
@@ -110,7 +115,11 @@ export function IdolProfileShell({
         {name}
         {bio}
         {links}
-        <IdolOnChainStats className="mt-2" subscriberCount={subscriberCount} receiptsUsdc={receiptsUsdc} />
+        <IdolOnChainStats
+          className="mt-2"
+          subscriberCount={subscriberCount}
+          receiptsUsdc={receiptsUsdc}
+        />
       </div>
 
       {album ? <section className="mt-5 px-2">{album}</section> : null}

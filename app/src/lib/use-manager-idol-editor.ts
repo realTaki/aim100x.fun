@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getManagerIdol } from "@/lib/idol-catalog";
-import { scenesJsonOf } from "@/lib/idol-fields";
+import { saveIdolConfig } from "@/lib/idol-manager-config";
+import { parseIdolConfig } from "@/lib/idol-config";
 import type { Idol } from "@/lib/idols";
 import { isIdolManagerWallet } from "@/lib/idol-manager-wallet";
-import {
-  fetchIdolPublic,
-  fetchIdolTokenOwner,
-  writeIdolFieldsOnChain,
-  writeIdolPublicOnChain,
-} from "@/lib/idol-manager-onchain";
+import { fetchIdolTokenOwner, writeIdolPricingOnChain } from "@/lib/idol-manager-onchain";
 import {
   idolImageUnlockPriceUsdc,
   idolSubscribePriceUsdc,
@@ -37,33 +33,38 @@ export function useManagerIdolEditor(tokenId: number | null) {
     setOwnerReady(false);
     setMissing(false);
     setIdol(null);
-    if (!tokenId) {
+    if (!tokenId || !wallet) {
       setMissing(true);
       return;
     }
-    void getManagerIdol({ data: { tokenId } }).then((loaded) => {
-      if (cancelled) return;
-      if (!loaded) {
-        setMissing(true);
-        return;
-      }
-      setIdol(loaded);
-      void prefetchFullMedia(loaded.covers);
-      void fetchIdolPublic(loaded.tokenId).then((value) => {
-        if (!cancelled) setIsPublic(value);
+    void getManagerIdol({ data: { tokenId } })
+      .then((loaded) => {
+        if (cancelled) return;
+        if (!loaded) {
+          setMissing(true);
+          return;
+        }
+        setIdol(loaded);
+        void prefetchFullMedia(loaded.covers);
+        setIsPublic(loaded.isPublic);
+        void fetchIdolTokenOwner(loaded.tokenId)
+          .then((value) => {
+            if (!cancelled) setOwner(value);
+          })
+          .finally(() => {
+            if (!cancelled) setOwnerReady(true);
+          });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMissing(true);
+          setOwnerReady(true);
+        }
       });
-      void fetchIdolTokenOwner(loaded.tokenId)
-        .then((value) => {
-          if (!cancelled) setOwner(value);
-        })
-        .finally(() => {
-          if (!cancelled) setOwnerReady(true);
-        });
-    });
     return () => {
       cancelled = true;
     };
-  }, [tokenId]);
+  }, [tokenId, wallet]);
 
   async function reloadIdol() {
     if (!tokenId) return;
@@ -78,28 +79,26 @@ export function useManagerIdolEditor(tokenId: number | null) {
     if (!idol || !canEdit) throw new Error("Can't save");
     const next = { ...idol, ...patch };
     const voice = next.voice.trim();
-    if (!voice) throw new Error("请先在高级设置中生成并保存声音");
     const sub = parseUsdcInput(String(next.subscribePriceUsdc)) ?? idolSubscribePriceUsdc(idol);
     const img = parseUsdcInput(String(next.imageUnlockPriceUsdc)) ?? idolImageUnlockPriceUsdc(idol);
-    await writeIdolFieldsOnChain(idol.tokenId, {
-      name: next.name.trim(),
-      bio: next.bio.trim(),
-      personality: next.personality.trim(),
-      look: next.look,
-      voice,
-      website: next.website.trim(),
-      twitter: next.twitter.trim(),
-      scenes: scenesJsonOf(next),
-      welcome: next.welcome.trim(),
-      subscribePriceUsdc: usdcToAtomic(sub),
-      imageUnlockPriceUsdc: usdcToAtomic(img),
+    if (sub !== idolSubscribePriceUsdc(idol) || img !== idolImageUnlockPriceUsdc(idol)) {
+      await writeIdolPricingOnChain(idol.tokenId, {
+        subscribePriceUsdc: usdcToAtomic(sub),
+        imageUnlockPriceUsdc: usdcToAtomic(img),
+      });
+    }
+    await saveIdolConfig({
+      data: { tokenId: idol.tokenId, config: parseIdolConfig({ ...next, voice }) },
     });
     await reloadIdol();
   }
 
   async function persistPublic(next: boolean): Promise<void> {
     if (!idol || !canEdit) throw new Error("Can't save");
-    await writeIdolPublicOnChain(idol.tokenId, next);
+    await saveIdolConfig({
+      data: { tokenId: idol.tokenId, config: parseIdolConfig({ ...idol, isPublic: next }) },
+    });
+    setIdol({ ...idol, isPublic: next });
     setIsPublic(next);
   }
 

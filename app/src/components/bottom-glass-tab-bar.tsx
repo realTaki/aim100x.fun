@@ -15,10 +15,10 @@ const TABS: {
   /** Compass is a circle; filling it becomes a purple blob. */
   fillActive?: boolean;
 }[] = [
-  { id: "plaza", to: "/", label: "广场", icon: PlazaTabIcon, fillActive: false },
-  { id: "subscribed", to: "/subscribed", label: "已订阅", icon: Heart },
-  { id: "creator", to: "/me/manager", label: "创作者中心", icon: Sparkles },
-  { id: "profile", to: "/me", label: "个人主页", icon: User },
+  { id: "plaza", to: "/", label: "Explore", icon: PlazaTabIcon, fillActive: false },
+  { id: "subscribed", to: "/subscribed", label: "Subscriptions", icon: Heart },
+  { id: "creator", to: "/me/manager", label: "Creator center", icon: Sparkles },
+  { id: "profile", to: "/me", label: "Profile", icon: User },
 ];
 
 function normalizeHubPath(pathname: string): string {
@@ -42,10 +42,6 @@ export function shouldShowBottomGlassTabBar(pathname: string): boolean {
   return bottomGlassTabFromPath(pathname) !== null;
 }
 
-/** Bottom inset for scrollable main content when the capsule is visible. */
-export const BOTTOM_GLASS_TAB_BAR_MAIN_PB =
-  "pb-[max(6.75rem,calc(env(safe-area-inset-bottom)+5.75rem))]";
-
 export function BottomGlassTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const active = bottomGlassTabFromPath(pathname);
@@ -53,8 +49,8 @@ export function BottomGlassTabBar() {
 
   return (
     <nav
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.65rem,env(safe-area-inset-bottom))]"
-      aria-label="主导航"
+      className="lf-hub-nav pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center"
+      aria-label="Main navigation"
     >
       <div className="lf-bottom-glass-capsule pointer-events-auto flex w-full gap-0.5 p-1">
         {TABS.map((tab) => (
@@ -103,10 +99,7 @@ function TabLink({
     >
       <Icon
         aria-hidden
-        className={cn(
-          "size-[22px] shrink-0",
-          fillActive ? active && "fill-current" : "fill-none",
-        )}
+        className={cn("size-[22px] shrink-0", fillActive ? active && "fill-current" : "fill-none")}
         strokeWidth={active ? 2.25 : 1.75}
         fill={fillActive ? undefined : "none"}
       />

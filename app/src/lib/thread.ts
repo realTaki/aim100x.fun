@@ -18,6 +18,9 @@ export type ChatMsg = {
   content: string;
   chapter: number;
   imageUrl?: string;
+  imageId?: string;
+  imagePaymentIntent?: string;
+  imagePaymentAmount?: string;
   imageContentRating?: "SFW" | "NSFW";
   imagePending?: boolean;
   voicePending?: boolean;
@@ -80,9 +83,7 @@ export function needsGeneratedShortcutChoices(
   if (isCannedShortcutChoices(choices)) return true;
   const seed = sceneChoices(sceneOf(idol, chapter)).filter((c) => c.trim().length > 0);
   return (
-    seed.length > 0 &&
-    seed.length === choices.length &&
-    seed.every((c, i) => c === choices[i])
+    seed.length > 0 && seed.length === choices.length && seed.every((c, i) => c === choices[i])
   );
 }
 
@@ -92,15 +93,17 @@ export function threadChoices(thread: ChatThread, chapter = thread.chapter): str
 
 /** Last spoken turn — ignore pending/image-only bubbles so chip gen is not discarded. */
 export function chipTurnKey(thread: ChatThread): string {
-  const last = [...thread.messages].reverse().find(
-    (m) =>
-      (m.role === "user" || m.role === "assistant") &&
-      !m.imagePending &&
-      !m.voicePending &&
-      !m.imageUrl &&
-      Boolean(m.content.trim()) &&
-      !m.error,
-  );
+  const last = [...thread.messages]
+    .reverse()
+    .find(
+      (m) =>
+        (m.role === "user" || m.role === "assistant") &&
+        !m.imagePending &&
+        !m.voicePending &&
+        !m.imageUrl &&
+        Boolean(m.content.trim()) &&
+        !m.error,
+    );
   return `${thread.chapter}:${last?.id ?? "none"}`;
 }
 
@@ -287,10 +290,7 @@ export function withOptimisticUserMessage(
   const text = content.trim();
   return {
     ...thread,
-    messages: [
-      ...thread.messages,
-      { id, role: "user", content: text, chapter: thread.chapter },
-    ],
+    messages: [...thread.messages, { id, role: "user", content: text, chapter: thread.chapter }],
     choicesByChapter: { ...thread.choicesByChapter, [thread.chapter]: [] },
   };
 }
@@ -325,10 +325,7 @@ function withDedupedUserTurns(thread: ChatThread): ChatThread {
 }
 
 /** Never drop an optimistic send and restore the unsent thread. */
-export function keepSentThread(
-  optimistic: ChatThread,
-  next?: ChatThread | null,
-): ChatThread {
+export function keepSentThread(optimistic: ChatThread, next?: ChatThread | null): ChatThread {
   if (!next) return withDedupedUserTurns(optimistic);
   const sent = [...optimistic.messages].reverse().find((m) => m.role === "user");
   if (!sent) return withDedupedUserTurns(next);
@@ -400,8 +397,7 @@ export async function readLocalHistoryOrNull(
 export function usedImageIdsFromMessages(messages: ChatMsg[]): string[] {
   const ids: string[] = [];
   for (const m of messages) {
-    if (!m.imageUrl) continue;
-    const id = imageIdFromUrl(m.imageUrl);
+    const id = m.imageId ?? (m.imageUrl ? imageIdFromUrl(m.imageUrl) : undefined);
     if (id && !ids.includes(id)) ids.push(id);
   }
   return ids;
@@ -436,7 +432,7 @@ export function withUsedImageIds(thread: ChatThread): ChatThread {
   const photos = collectPhotoUrls(thread);
   return {
     ...thread,
-    usedImageIds: ids.length > 0 ? ids : thread.usedImageIds ?? [],
+    usedImageIds: ids.length > 0 ? ids : (thread.usedImageIds ?? []),
     photoUrls: photos,
   };
 }
@@ -502,4 +498,3 @@ export function foldVoiceIntoText(messages: ChatMsg[]): ChatMsg[] {
   }
   return out;
 }
-

@@ -14,7 +14,9 @@ export function ActionGlyphIcon({
   className?: string;
 }) {
   if (status === "pending") {
-    return <Loader2 aria-hidden className={cn("size-4 animate-spin", className)} strokeWidth={2.25} />;
+    return (
+      <Loader2 aria-hidden className={cn("size-4 animate-spin", className)} strokeWidth={2.25} />
+    );
   }
   if (status === "success") {
     return <Check aria-hidden className={cn("size-5", className)} strokeWidth={2.25} />;
@@ -32,9 +34,9 @@ export function ActionGlyphButton({
   className,
   iconClassName,
   idleLabel,
-  pendingLabel = "处理中",
-  successLabel = "已完成",
-  errorLabel = "失败",
+  pendingLabel = "Processing",
+  successLabel = "Done",
+  errorLabel = "Failed",
   children,
 }: {
   status: ActionGlyph;

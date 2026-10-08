@@ -8,7 +8,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { IDOLS100X_CHAIN_ID, IDOLS100X_IDOL_ABI } from "@/lib/idols100x";
+import { IDOLS100X_ADDRESS, IDOLS100X_CHAIN_ID, IDOLS100X_IDOL_ABI } from "@/lib/idols100x";
 import type { McpAgentSession } from "@/lib/mcp/auth.server";
 import { executeAgentCall } from "@/lib/mcp/userop";
 
@@ -36,17 +36,8 @@ export type Idol = IdolContent & {
 };
 
 type RawIdol = {
-  name: string;
-  bio: string;
-  personality: string;
-  look: string;
-  voice: string;
-  website: string;
-  twitter: string;
-  scenes: string;
   subscribePriceUsdc: bigint;
   imageUnlockPriceUsdc: bigint;
-  isPublic: boolean;
   subscriberCount: bigint;
   receiptsUsdc: bigint;
   salePriceUsdc: bigint;
@@ -83,7 +74,7 @@ export class LonelyFunsClient {
       chain: {
         id: IDOLS100X_CHAIN_ID,
         name: "Monad Testnet",
-        nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+        nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
         rpcUrls: { default: { http: [session.rpcUrl] } },
       },
       transport: http(session.rpcUrl),
@@ -97,8 +88,13 @@ export class LonelyFunsClient {
   }
 
   async getIdol(tokenId: number): Promise<Idol> {
+    if (!isAddressEqual(this.session.idols100x, IDOLS100X_ADDRESS))
+      throw new Error("Unsupported collection");
+    await this.requireRole(tokenId, 1);
+    const { readIdolConfig } = await import("@/lib/idol-config.server");
+    const config = await readIdolConfig(tokenId);
     const id = BigInt(tokenId);
-    const [owner, raw, welcome] = await Promise.all([
+    const [owner, raw] = await Promise.all([
       this.publicClient.readContract({
         address: this.session.idols100x,
         abi: IDOLS100X_IDOL_ABI,
@@ -111,29 +107,23 @@ export class LonelyFunsClient {
         functionName: "idolOf",
         args: [id],
       }),
-      this.publicClient.readContract({
-        address: this.session.idols100x,
-        abi: IDOLS100X_IDOL_ABI,
-        functionName: "welcomeOf",
-        args: [id],
-      }),
     ]);
     const idol = raw as RawIdol;
     return {
       tokenId,
       owner,
-      name: idol.name,
-      bio: idol.bio,
-      personality: idol.personality,
-      look: idol.look,
-      voice: idol.voice,
-      website: idol.website,
-      twitter: idol.twitter,
-      scenes: idol.scenes,
-      welcome,
+      name: config.name,
+      bio: config.bio,
+      personality: config.personality,
+      look: config.look,
+      voice: config.voice,
+      website: config.website,
+      twitter: config.twitter,
+      scenes: JSON.stringify(config.scenes),
+      welcome: config.welcome,
       subscribePriceUsdc: formatUnits(idol.subscribePriceUsdc, 6),
       imageUnlockPriceUsdc: formatUnits(idol.imageUnlockPriceUsdc, 6),
-      isPublic: idol.isPublic,
+      isPublic: config.isPublic,
       subscriberCount: idol.subscriberCount.toString(),
       receiptsUsdc: formatUnits(idol.receiptsUsdc, 6),
       salePriceUsdc: formatUnits(idol.salePriceUsdc, 6),
@@ -202,33 +192,23 @@ export class LonelyFunsClient {
     return authorization;
   }
 
-  async updateContent(tokenId: number, patch: ContentPatch): Promise<Hex> {
-    await this.requireRole(tokenId, 1);
+  async updateContent(tokenId: number, patch: ContentPatch): Promise<{ ok: true }> {
     const current = await this.getIdol(tokenId);
-    const { welcome, ...contentPatch } = patch;
-    const hasContent = Object.values(contentPatch).some((value) => value !== undefined);
-    let hash: Hex | undefined;
-    if (hasContent) {
-      const input = mergeContent(current, contentPatch);
-      hash = await this.write(
-        encodeFunctionData({
-          abi: IDOLS100X_IDOL_ABI,
-          functionName: "setIdolContent",
-          args: [BigInt(tokenId), input],
-        }),
-      );
-    }
-    if (welcome !== undefined) {
-      hash = await this.write(
-        encodeFunctionData({
-          abi: IDOLS100X_IDOL_ABI,
-          functionName: "setWelcome",
-          args: [BigInt(tokenId), welcome],
-        }),
-      );
-    }
-    if (!hash) throw new Error("Provide at least one content field");
-    return hash;
+    if (!Object.values(patch).some((value) => value !== undefined))
+      throw new Error("Provide at least one content field");
+    const { parseIdolConfig } = await import("@/lib/idol-config");
+    const { writeIdolConfig } = await import("@/lib/idol-config.server");
+    const content = mergeContent(current, patch);
+    await writeIdolConfig(
+      tokenId,
+      parseIdolConfig({
+        ...content,
+        scenes: JSON.parse(content.scenes || "[]"),
+        welcome: patch.welcome ?? current.welcome,
+        isPublic: current.isPublic,
+      }),
+    );
+    return { ok: true };
   }
 
   async updatePricing(
@@ -237,7 +217,10 @@ export class LonelyFunsClient {
   ): Promise<Hex> {
     await this.requireRole(tokenId, 2);
     const current = await this.getIdol(tokenId);
-    const subscribePriceUsdc = parseUnits(prices.subscribePriceUsdc ?? current.subscribePriceUsdc, 6);
+    const subscribePriceUsdc = parseUnits(
+      prices.subscribePriceUsdc ?? current.subscribePriceUsdc,
+      6,
+    );
     const imageUnlockPriceUsdc = parseUnits(
       prices.imageUnlockPriceUsdc ?? current.imageUnlockPriceUsdc,
       6,
@@ -254,15 +237,15 @@ export class LonelyFunsClient {
     );
   }
 
-  async setPublic(tokenId: number, isPublic: boolean): Promise<Hex> {
-    await this.requireRole(tokenId, 1);
-    return this.write(
-      encodeFunctionData({
-        abi: IDOLS100X_IDOL_ABI,
-        functionName: "setPublic",
-        args: [BigInt(tokenId), isPublic],
-      }),
-    );
+  async setPublic(tokenId: number, isPublic: boolean): Promise<{ ok: true }> {
+    const current = await this.getIdol(tokenId);
+    const { writeIdolConfig } = await import("@/lib/idol-config.server");
+    await writeIdolConfig(tokenId, {
+      ...current,
+      scenes: JSON.parse(current.scenes || "[]"),
+      isPublic,
+    });
+    return { ok: true };
   }
 
   async setSalePrice(tokenId: number, priceUsdc: string): Promise<Hex> {

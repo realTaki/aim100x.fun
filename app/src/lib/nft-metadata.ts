@@ -1,12 +1,11 @@
-import { LONELYFUNS_VERCEL_ORIGIN } from "./auth/account-host.ts";
-import { idolBio, idolName, idolPersonality, idolTwitter, idolWebsite } from "./idol-fields.ts";
+import { idolBio, idolName, idolTwitter, idolWebsite } from "./idol-fields.ts";
 import {
   formatSalePrice,
   formatUsdcPrice,
   idolImageUnlockPriceUsdc,
   idolSubscribePriceUsdc,
 } from "./idol-pricing.ts";
-import { idolPublicUrl } from "./idol-links.ts";
+import { idolPublicPath } from "./idol-links.ts";
 import type { Idol } from "./idols.ts";
 import { NFT_METADATA_BASE_URI } from "./idols100x.ts";
 import { parseTokenIdParam } from "./token-id.ts";
@@ -38,12 +37,12 @@ export const NFT_METADATA_JSON_HEADERS = {
   ...NFT_METADATA_CORS_HEADERS,
 } as const;
 
-/** Stable public origin for tokenURI JSON + `/api/media` (not preview hosts). */
+/** Use the deployed collection’s metadata host for its media and idol links. */
 export function nftMetadataPublicOrigin(): string {
-  return LONELYFUNS_VERCEL_ORIGIN;
+  return new URL(NFT_METADATA_BASE_URI).origin;
 }
 
-/** Absolute `/api/media/...` — never a short-lived Notion file URL. */
+/** Absolute `/api/media/...` — never a short-lived storage URL. */
 export function absolutePublicMediaUrl(pathOrUrl: string): string {
   const raw = pathOrUrl.trim();
   if (!raw) return "";
@@ -51,7 +50,7 @@ export function absolutePublicMediaUrl(pathOrUrl: string): string {
     try {
       const parsed = new URL(raw);
       if (parsed.pathname.startsWith("/api/media/")) {
-        return `${LONELYFUNS_VERCEL_ORIGIN}${parsed.pathname}`;
+        return `${nftMetadataPublicOrigin()}${parsed.pathname}`;
       }
     } catch {
       return "";
@@ -60,7 +59,7 @@ export function absolutePublicMediaUrl(pathOrUrl: string): string {
   }
   const path = raw.startsWith("/") ? raw : `/${raw}`;
   if (!path.startsWith("/api/media/")) return "";
-  return `${LONELYFUNS_VERCEL_ORIGIN}${path}`;
+  return `${nftMetadataPublicOrigin()}${path}`;
 }
 
 export function nftMetadataTokenUri(tokenId: number): string {
@@ -74,28 +73,21 @@ export function parseMetadataTokenKey(raw: string): { tokenId?: number } {
 
 export function buildErc721TokenMetadata(idol: Idol): Erc721TokenMetadata {
   const name = idolName(idol);
-  const description =
-    idolBio(idol) ||
-    idolPersonality(idol) ||
-    `${name} on aim100x.fun.`;
+  const description = idolBio(idol) || `${name} on aim100x.fun.`;
   const attributes: Erc721Attribute[] = [
     { trait_type: "Token ID", value: idol.tokenId },
     { trait_type: "Public", value: idol.isPublic ? "true" : "false" },
     { trait_type: "Fans", value: idol.subscriberCount },
-    { trait_type: "累计收账", value: formatUsdcPrice(idol.receiptsUsdc) },
+    { trait_type: "Total received", value: formatUsdcPrice(idol.receiptsUsdc) },
     { trait_type: "Subscribe", value: formatUsdcPrice(idolSubscribePriceUsdc(idol)) },
     { trait_type: "Image unlock", value: formatUsdcPrice(idolImageUnlockPriceUsdc(idol)) },
     { trait_type: "Sale", value: formatSalePrice(idol.salePriceUsdc) },
   ];
-  const personality = idolPersonality(idol);
-  if (personality) {
-    attributes.push({ trait_type: "人设", value: personality });
-  }
   return {
     name,
     description,
     image: absolutePublicMediaUrl(idol.avatar),
-    external_url: idolPublicUrl(idol.tokenId),
+    external_url: `${nftMetadataPublicOrigin()}${idolPublicPath(idol.tokenId)}`,
     website: idolWebsite(idol),
     twitter: idolTwitter(idol),
     attributes,

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "@tanstack/react-router";
 import { ChevronLeft, MessageSquare, Search, Trash2 } from "lucide-react";
 import type { Idol } from "@/lib/idols";
-import { getThreadForUser, restartChatForUser, searchThreadMessages } from "@/lib/chat-client";
+import {
+  getThreadForUser,
+  persistChatThread,
+  restartChatForUser,
+  searchThreadMessages,
+} from "@/lib/chat-client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn, isUnauthorized } from "@/lib/utils";
 import { isChapterMeta, collectPhotoUrls, type ChatMsg, type ChatThread } from "@/lib/thread";
@@ -114,7 +119,7 @@ export function HistoryScreen({ creator }: { creator: Idol }) {
           params={{ tokenId: String(creator.tokenId) }}
           className="flex h-11 items-center rounded-full bg-accent px-5 text-sm font-medium text-fg shadow-[0_8px_24px_rgb(192_38_255_/_0.28)]"
         >
-          返回聊天
+          Back to chat
         </Link>
       </div>
     );
@@ -140,7 +145,7 @@ export function HistoryScreen({ creator }: { creator: Idol }) {
           <ChevronLeft className="size-6" />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight">
-          聊天记录
+          Chat history
         </h1>
       </header>
 
@@ -152,19 +157,24 @@ export function HistoryScreen({ creator }: { creator: Idol }) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索聊天记录"
+              placeholder="Search chat history"
               className="lf-search"
             />
           </label>
           <button
             type="button"
             className="lf-icon-btn text-muted hover:text-danger"
-            aria-label="清空聊天记录"
-            title="清空聊天记录"
+            aria-label="Clear chat history"
+            title="Clear chat history"
             disabled={clearing || !user}
             onClick={() => {
               if (!user || clearing) return;
-              if (!window.confirm("Clear chat history? Photos in the library will stay so you can chat again.")) return;
+              if (
+                !window.confirm(
+                  "Clear chat history? Photos in the library will stay so you can chat again.",
+                )
+              )
+                return;
               setClearing(true);
               void restartChatForUser(user, creator, thread)
                 .then((next) => {
@@ -187,20 +197,24 @@ export function HistoryScreen({ creator }: { creator: Idol }) {
             onClick={() => setTab("messages")}
             className={cn(
               "h-9 rounded-full text-sm font-medium transition-colors",
-              tab === "messages" ? "bg-accent text-fg shadow-[0_4px_14px_rgb(192_38_255_/_0.28)]" : "text-muted",
+              tab === "messages"
+                ? "bg-accent text-fg shadow-[0_4px_14px_rgb(192_38_255_/_0.28)]"
+                : "text-muted",
             )}
           >
-            消息
+            Messages
           </button>
           <button
             type="button"
             onClick={() => setTab("photos")}
             className={cn(
               "h-9 rounded-full text-sm font-medium transition-colors",
-              tab === "photos" ? "bg-accent text-fg shadow-[0_4px_14px_rgb(192_38_255_/_0.28)]" : "text-muted",
+              tab === "photos"
+                ? "bg-accent text-fg shadow-[0_4px_14px_rgb(192_38_255_/_0.28)]"
+                : "text-muted",
             )}
           >
-            图片
+            Photos
           </button>
         </div>
       </div>
@@ -216,7 +230,30 @@ export function HistoryScreen({ creator }: { creator: Idol }) {
             />
           ) : (
             messages.map((m) => (
-              <ChatBubble key={m.id} msg={m} gate={gate} onOpenImage={setLightbox} />
+              <ChatBubble
+                key={m.id}
+                msg={m}
+                gate={gate}
+                onOpenImage={setLightbox}
+                onImageUnlocked={(id, imageUrl) => {
+                  if (!user) return;
+                  setSearchHits(
+                    (hits) =>
+                      hits?.map((row) =>
+                        row.id === id ? { ...row, imageUrl, imageNsfwUnlocked: true } : row,
+                      ) ?? null,
+                  );
+                  setThread((prev) => {
+                    if (!prev) return prev;
+                    const messages = prev.messages.map((row) =>
+                      row.id === id ? { ...row, imageUrl, imageNsfwUnlocked: true } : row,
+                    );
+                    const next = { ...prev, messages };
+                    void persistChatThread(user, creator.tokenId, next);
+                    return next;
+                  });
+                }}
+              />
             ))
           )}
         </div>
