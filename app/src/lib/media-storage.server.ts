@@ -24,12 +24,16 @@ export function mediaStorageConfigured(): boolean {
 }
 
 function databaseUrl() {
-  return process.env.idols100x_DATABASE_URL || process.env.DATABASE_URL;
+  return (
+    process.env.AIM100X_DATABASE_URL ||
+    process.env.idols100x_DATABASE_URL ||
+    process.env.DATABASE_URL
+  );
 }
 
 export function mediaSql() {
   const url = databaseUrl();
-  if (!url) throw new Error("idols100x_DATABASE_URL is required for the media library");
+  if (!url) throw new Error("AIM100X_DATABASE_URL is required for the media library");
   return neon(url);
 }
 
