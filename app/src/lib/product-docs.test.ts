@@ -38,6 +38,10 @@ describe("agent-facing /docs", () => {
       assert.match(text, /\*\*Not implemented:/);
       assert.match(text, /platform-funded gas|platform funds gas/);
       assert.doesNotMatch(text, /user pays gas|external wallet owns|no account tables/i);
+      assert.match(text, /authorized additional server signers and policies/);
+      assert.match(text, /sign repeatedly within an active signing session/);
+      assert.match(text, /not derived from the Mera private key or PRF/);
+      assert.match(text, /Privy also offers free core usage/);
     }
     assert.doesNotMatch(PRODUCT_DOCS, /\| `\/login` \| Passkey/);
   });

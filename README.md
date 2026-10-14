@@ -10,9 +10,15 @@ See [`/docs`](https://aim100x.fun/docs) for fan, creator and agent workflows.
 
 ## Accounts and payments
 
-External wallets, Privy and Mera are **login providers only**. Each verified provider identity has an independent account and APP wallet. Accounts are not merged by email, display name or login address.
+AIM100x currently uses self-managed, server-derived **APP wallets** for continuous backend payments. The project has not adopted a paid Privy wallet setup and is temporarily using this design; it is a project choice, not a limitation of Privy or Mera. External-wallet, Privy and Mera identities each map to an independent APP account, without automatic account merging.
 
-The server derives a stable APP private key from the verified provider namespace/account identity and the original `WALLET_MASTER_SECRET`. The browser requests an allowed action; the server checks the session, ownership, prices and replay state, then constructs and signs the transaction. The private key and mnemonic never return to the browser. External wallets sign the login proof only; Privy authenticates via its access token; Mera uses the official passkey/PRF SDK for its login proof.
+**Privy** embedded wallets can support automatic backend payments through authorized additional server signers and policies, including its Node x402 client. Privy also offers free core usage. In this app, embedded-wallet creation is currently off: Privy verifies identity, and the APP wallet signs business transactions.
+
+**Mera** provides a passkey-derived secp256k1 EOA identity and can sign repeatedly within an active signing session. This app ends that client session after the login proof and clears the key buffers; it has not integrated backend delegated signing for the Mera identity. The APP wallet therefore handles ongoing payments. Its account ID binds the Mera namespace, stable RP and verified signer address; the server combines that ID with its master secret to derive the APP private key. This links the two identities, but the APP key is **not derived from the Mera private key or PRF**.
+
+The server signs only allowed requests from an authenticated session, checking ownership, prices and replay state. APP private keys stay on the server. All supported business operations, including NFT transactions, use the APP wallet, with platform-funded gas within its allowance.
+
+See [wallet design and official references](docs/wallet-design.md) for the derivation details and alternatives.
 
 **All supported business transactions use the APP wallet on Monad Testnet (10143).** This includes claiming LUSD, subscriptions, tips, image unlocks, NFT minting/buying/listing, pricing, granting/removing Agent roles and TBA withdrawal. APP-wallet ERC-20 approvals are constructed for the exact operation amount. No login-wallet transaction fallback is permitted.
 
