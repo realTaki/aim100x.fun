@@ -45,7 +45,7 @@ npm run media:check -w app
 
 The config migration reads the existing Monad collection at one block. It never sends a transaction and never overwrites an existing config row. Media migration preserves original UUIDs, metadata, ordering, and SHA-256 checksums; it never modifies Notion or overwrites application edits. Failed/ambiguous database commits retain uploaded objects for recovery. Rerun to verify/resume. The live media check removes only its own isolated fixture.
 
-`NOTION_TOKEN` is used only by migration. `NOTION_IMAGES_DATABASE_ID` optionally overrides the prior aim source `NOTION_DATABASE_ID_REMOVED`. Runtime never reads/writes Notion. Initialize and migrate before deploying this storage switch; there is no silent fallback to public legacy prompts.
+`NOTION_TOKEN` and `NOTION_IMAGES_DATABASE_ID` must be supplied explicitly for migration. There is no default source database; a missing or blank database ID fails before any Notion request. Runtime never reads/writes Notion. Initialize and migrate before deploying this storage switch; there is no silent fallback to public legacy prompts.
 
 ## Retained wallet and chain boundaries
 
