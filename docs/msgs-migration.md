@@ -57,6 +57,18 @@ Read-only inventories succeeded: **4 legacy Monad idols** at block `69118313` an
 
 ## Live verification still required
 
-This environment has no Neon/R2 configuration or `WALLET_MASTER_SECRET`. Schemas/data have not been written to live storage. No NFT was redeployed, no real wallet delegation was submitted, and no API or product payment was made. Configure those resources and run the commands above before deployment. Historical creative fields already on the legacy contract remain publicly readable; this migration cannot erase them.
+### Migration preflight — 2026-10-13 (America/Edmonton)
+
+Latest `main` inspected: `6fa2cdc`. Fresh read-only inventory found **4 legacy Monad idols** at block `70850762` and **22 Notion images**, all eligible, with **22 originals and 22 thumbnails**, zero skipped pages and zero missing original URLs. A local hash/timestamp baseline was captured to check that Notion remains unchanged; no source content or credentials were committed.
+
+The configured R2 account contains `idols100x` and the separate `msgs100x` bucket. `idols100x` has its managed public domain disabled and no custom domains. Read-only S3 listing succeeded: 44 existing objects, none under the new `aim100x/` prefix. Existing objects must remain untouched. `R2_BUCKET_NAME` is absent from the task environment; migration commands should explicitly select `idols100x` once destination identity is confirmed.
+
+Neon destination identity is **awaiting confirmation**. Use `AIM100X_DATABASE_URL` as the command-local `DATABASE_URL`; do not fall back to another project's database. Its hostname is `ep-round-shape-b8novoaj-pooler.c-14.us-east-1.aws.neon.tech`. The supplied `AIM100X_NEON_PROJECT_ID` contains an Auth URL rather than a project ID. Vercel associates aim100x.fun with store `store_XGU8pOxZe2lydv08` / Neon project `bitter-dust-05325911`; sensitive values cannot be read back from Vercel to establish an exact connection-string match. Confirm the supplied database belongs to aim before any destination writes.
+
+A schema-only inspection found existing Neon-managed `neon_auth` tables and no idol content tables. No account rows were read or written. This migration creates only `idol_config` and `aim_idol_media`; it must not populate or change account tables. `WALLET_MASTER_SECRET` is present and was separately added as a Production Secret to Vercel aim100x.fun.
+
+Focused configuration allowlist, media HTTP, UUID and image-payment test files passed (4/4); TypeScript checking passed. **No migration schemas, configuration rows or media objects have been written**, and live `media:check` remains pending. After confirming Neon identity, run the full ordered sequence above, then verify source UUIDs/metadata, original and thumbnail checksums, source immutability, private access and fixture cleanup. Record actual imported/preserved counts before marking the migration complete.
+
+No NFT was redeployed, no wallet delegation was submitted, and no API or product payment was made. Historical creative fields already on the legacy contract remain publicly readable; this migration cannot erase them.
 
 BlockRun's documented Grok generation route does not accept references. Default jobs with private anchors therefore use the verified Monid/MiniMax image-01 route; text-only jobs use Grok Imagine 2.0. Explicitly selecting Grok rejects anchored jobs before payment. Prompt-cache forwarding and cache savings through Monid still need funded verification. Voice design is absent from the Hub, so the editor accepts existing MiniMax voice IDs and allows voice notes to be disabled.
