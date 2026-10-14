@@ -2,11 +2,13 @@
 
 export const PRODUCT_DOCS = `# aim100x.fun
 
-Audience: other agents (Codex, Claude, Cursor). Humans use the app; this page is how you understand it.
+Discover AI idols, chat through text and voice, or create a character with its own personality and scenes. aim100x.fun combines AI roleplay with NFT ownership on Monad: fans subscribe to idols, and creators shape their content, set prices, and receive payments.
+
+This guide covers fan, creator, and agent workflows.
 
 Live product: https://aim100x.fun
 
-The app UI uses English. Chat language follows the browser by default; an explicit language choice is saved on the device.
+The app UI uses English; Chinese terms below are legacy labels. Chat language follows the browser by default; an explicit language choice is saved on the device.
 
 ## Storage and wallet boundaries
 
@@ -14,26 +16,24 @@ Only idol configuration and media metadata live in Neon; images live in private 
 
 ## What it is
 
-aim100x.fun is a phone-shaped app of **AI idols**. Each idol is a persistent persona with a public profile, paid 1:1 chat (text, voice notes, photos), and a broker who owns it.
+Each **AI idol** has a public profile, a creator-defined persona, and private conversations with text, voice notes, and photos.
 
 - Fans discover idols, subscribe with **LUSD**, then open **DM** (私信, the 1:1 chat).
 - **Brokers** (经纪人) own the idol **ERC-721 NFT**, edit persona and scenes, take subscribe/unlock revenue, and may sell the NFT.
-- Other agents manage a broker's idols through MCP at https://aim100x.fun/mcp (signed \`lf1.\` bearer). The server verifies the signature and stores nothing.
+- Other agents manage a broker's idols through MCP at https://aim100x.fun/mcp (signed \`lf1.\` bearer). The server verifies the signed proof and keeps any supplied signing key in request memory.
 
-NSFW photos are paywalled. Subscribe and unlock run on **Monad testnet**; LLM API payments use Monad mainnet USDC.
+A **one-time LUSD subscription** unlocks chat; paid images are charged separately on **Monad Testnet**. AI requests additionally use **mainnet USDC through x402**. One turn can make multiple requests: the **0.10 USDC cap is per API request**, not per message, turn, or day. Ambiguous paid requests are not automatically retried.
 
-## On-chain concepts (labels, not a setup guide)
-
-Name these standards when matching aim100x.fun to other crypto products. There is no contract-address list here.
+## Accounts, ownership, and payments
 
 | Label | In this product |
 | --- | --- |
 | **External-wallet SIWE** | The connected Web3 wallet signs login and owns NFTs. Product payments are ordinary transactions signed by that wallet. |
 | **EOA + EIP-7702 API wallet** | A separate derived wallet holds mainnet USDC and automatically pays API requests. The platform sponsors its initialization; users pay MON gas for external-wallet product transactions. |
-| **ERC-721** idol NFT | Collection **Idols100x**. One token = one idol. The **broker** (经纪人) **is the NFT owner**. Transfer/buy moves the whole idol (persona, scenes, TBA, future revenue). |
-| **ERC-6551** token-bound account (TBA) | Canonical Tokenbound TBA bound to that ERC-721. Subscribe LUSD and per-image unlock LUSD go to the **idol TBA**. The broker later withdraws TBA LUSD to their external wallet. **Not ERC-6553.** |
+| **ERC-721** idol NFT | Collection **Idols100x**. One token = one idol. The **broker** (经纪人) **is the NFT owner**. Transfer/buy changes control of the idol and its TBA. Assets stay at the TBA address; private content access follows ownership. Browser chat history is not transferred. |
+| **ERC-6551** token-bound account (TBA) | Canonical Tokenbound TBA bound to that ERC-721. Subscribe LUSD and per-image unlock LUSD go to the **idol TBA**. The broker later withdraws TBA LUSD to their external wallet. |
 | **LonelyUSD (LUSD)** | Testnet ERC-20, 6 decimals. The product payment asset. Faucet, subscribe, unlock, mint, and NFT sale all use LUSD. API payments separately use mainnet USDC. |
-| **Agent Account** | A second ERC-4337 PasskeyAccount from a **software P-256 key** (not the broker's browser Passkey). Authorized once via \`setAgent\`. MCP signs as this account. |
+| **Agent Account** | A separate ERC-4337 PasskeyAccount from a **software P-256 key**, independent of the external login wallet. Authorized once via \`setAgent\`. MCP signs as this account. |
 
 \`buy()\` pays the **current ERC-721 owner**, not the TBA (otherwise the buyer would reclaim the sale). **Lifetime receipts** (累计收账) still count that sale. Plaza **public** (公开) is visibility, not the sale listing.
 
@@ -44,7 +44,7 @@ App tabs: **Plaza** (广场) \`/\` · **Subscribed** (已订阅) \`/subscribed\`
 1. Open https://aim100x.fun → **Login** (\`/login\`) with an external Web3 wallet and sign the SIWE message. Set a local six-digit privacy PIN; this PIN locks the screen and does not authenticate the wallet.
 2. **Profile**: set **Prefer language**, username, bio, avatar. Claim **+100 LUSD** from the faucet (24h cooldown) for testnet product payments. Deposit mainnet USDC into the separate API wallet for chat, image generation and speech.
 3. **Plaza**: public idols (\`isPublic\`). Search, sort by subscribers or lifetime receipts (累计收账). Open a card → profile \`/idol/{tokenId}\`.
-4. **Subscribe** (订阅; default **1 LUSD**, broker can change). Pays the idol TBA; you become a fan. DM stays locked until subscribed.
+4. **Subscribe** (订阅; one-time payment, default **1 LUSD**, broker can change). Pays the idol TBA; you become a fan. DM stays locked until subscribed.
 5. **DM** \`/chat/{tokenId}\`: text or hold-to-talk voice (STT). The idol replies in short 1:1 lines; it may attach a photo or a voice-note bubble (TTS). Thread lives in this browser (OPFS) per external-wallet account. History \`/chat/{tokenId}/history\`: search, photos tab, restart (reseeds **欢迎词** (welcome) + opening; keeps seen photos).
 6. **NSFW paywall**: images tagged NSFW. On plaza/profile, subscribers see them; others pay **per-image** (单图) LUSD (default 1) per image. In chat, **each NSFW photo is paid separately** even if you already subscribed. SFW is free. Unlock is local to this account + idol.
 7. If the idol is listed, **buy the NFT** (LUSD to the current owner). You become the broker.
@@ -82,7 +82,7 @@ MCP cannot mint, buy, transfer, upload photos, chat, faucet, or call \`setAgent\
 
 ## Prefer language, scenes, and 欢迎词 (welcome)
 
-These three are what actually change fan chat. Prefer them over leftover fields.
+Language preferences shape the opening messages; the persona and current scene guide the conversation.
 
 ### Prefer language
 
@@ -116,7 +116,7 @@ Creator-typed language is kept until Prefer language rewrites at init. Default f
 
 **URL:** https://aim100x.fun/mcp
 **Auth:** \`Authorization: Bearer lf1.…\`  
-**Store:** none. Verify signature, bind the Agent Account, run the tool, discard the key.
+**Authentication:** verify the signed P-256 proof and bind the Agent Account through its factory and, when deployed, its on-chain public key. Signing keys supplied for writes stay in request memory.
 
 The broker copies config from Broker Center → Agent account → **Copy Codex MCP configuration**. That Markdown is a secret (signed token + software key). Share only with a trusted agent. Reset or **Remove access** invalidates it. Clearing site data loses the local key; reset to replace.
 
@@ -159,7 +159,7 @@ Content and visibility writes save private Neon configuration after on-chain rol
 | \`/chat/{tokenId}\` | Fan DM (私信; must be subscribed) |
 | \`/chat/{tokenId}/history\` | Thread history / photos / restart |
 | \`/subscribed\` | Fan's subscribed idols (已订阅) |
-| \`/login\` | Passkey |
+| \`/login\` | External-wallet SIWE |
 | \`/me\` | Prefer language, profile, LUSD faucet |
 | \`/me/manager\` | Broker hub (经纪人), mint |
 | \`/me/manager/{tokenId}\` | Idol editor |
@@ -168,7 +168,21 @@ Content and visibility writes save private Neon configuration after on-chain rol
 | \`/mcp\` | Agent MCP (this is not a page) |
 | \`/docs\` | This Markdown |
 
-Default idol voices are MiniMax Chinese (Mandarin) system voices until the broker generates new **voice settings** (声音设定).
+## AI services and current limits
+
+Chat defaults to Grok 4.3 through Monid → BlockRun, with MiniMax-M3 selectable. Text-only images use Grok Imagine 2.0; jobs with private references use MiniMax image-01. Speech uses MiniMax through Monid, and transcription uses Orthogonal/ElevenLabs. Voice design is unavailable through the current routes; use an existing voice ID or disable voice notes.
+
+An optional temporary MiniMax bridge handles unpaid chat/image failures, including insufficient USDC, using the platform API key. Submitted, settled, or uncertain payments do not trigger fallback. Login and content permissions still apply. This bridge does not change voice/STT.
+
+## Implementation status
+
+This guide describes the current main branch. Implemented code and verified production behavior are distinct:
+
+- **Implemented:** external-wallet SIWE login, a separate server-controlled EOA + EIP-7702 API wallet, mainnet USDC x402 requests, testnet LUSD subscriptions and NFT payments, private Neon/R2 content, and P-256 MCP authorization.
+- **Recorded verification:** the storage migration report documents 4 idol configurations, 22 images with originals and thumbnails, and production media-access checks. Funded AI requests, wallet delegation, and upstream prompt-cache savings are outside that verification.
+- **Under consideration, not implemented in main:** the proposed Mera single-passkey/derived-account flow, per-idol scoped keys, Privy login, Alchemy integration, and KIMI inference. Privy exists on a separate branch; the KIMI write-up is a placeholder. These are research or development candidates, not released capabilities or delivery commitments.
+
+Subscriptions remain part of the product. Removing them in favor of message-only billing would be a product change, not a description of current behavior.
 `;
 
 const DOCS_HEADERS = {

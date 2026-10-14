@@ -28,6 +28,7 @@ export type AiBackend = {
   apiKey: string;
   promptCacheKey?: string;
   loginAddress?: `0x${string}`;
+  identity?: import("./auth/identity").LoginIdentity;
   walletAddress?: `0x${string}`;
 };
 

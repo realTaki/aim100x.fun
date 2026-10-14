@@ -7,7 +7,8 @@ import { createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { readPaymasterSigner } from "./paymaster-signer.mjs";
 
-const RPC = "https://testnet-rpc.monad.xyz";
+const RPC = process.env.ALCHEMY_MONAD_TESTNET_RPC_URL;
+if (!RPC || !/^https:\/\/monad-testnet\.g\.alchemy\.com\/v2\/[A-Za-z0-9_-]+$/.test(RPC)) throw new Error("Configure ALCHEMY_MONAD_TESTNET_RPC_URL");
 const ADDRESS = (
   process.env.IDOLS100X_ADDRESS || "0xeB88B15911431c4F3903F5780AB584E7CD6022cB"
 ).toLowerCase();

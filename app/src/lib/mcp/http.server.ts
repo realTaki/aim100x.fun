@@ -4,6 +4,7 @@ import {
   mcpUnauthorizedResponse,
 } from "@/lib/mcp/auth.server";
 import { createLonelyFunsMcpServer } from "@/lib/mcp/server";
+import { findRpcConfigurationError } from "../monad-rpc.server.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -47,11 +48,13 @@ export async function handleMcpHttpRequest(request: Request): Promise<Response> 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
-  const auth = await authenticateMcpRequest(request);
-  if (!auth.ok) return withCors(mcpUnauthorizedResponse());
   try {
+    const auth = await authenticateMcpRequest(request);
+    if (!auth.ok) return withCors(mcpUnauthorizedResponse());
     return withCors(await mcpHandler.fetch(request));
   } catch (error) {
+    const config = findRpcConfigurationError(error);
+    if (config) return withCors(Response.json({ error: config.message }, { status: 503 }));
     const message = error instanceof Error ? error.message : "MCP failed";
     if (message !== "unauthorized") console.error("[mcp]", message);
     return withCors(

@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { createPublicClient, http, type Address } from "viem";
 import { usdcToAtomicOrZero } from "@/lib/idol-pricing";
 import { externalWalletAddress } from "@/lib/subscribe/connected-wallet";
@@ -52,7 +53,7 @@ const ERC20_ABI = [
 
 const publicClient = createPublicClient({
   chain: monadChain,
-  transport: http(IDOLS100X_RPC_URL),
+  transport: monadTransport(10143),
 });
 
 export async function fetchIdolTokenOwner(tokenId: number): Promise<Address | null> {
@@ -177,5 +178,5 @@ export async function withdrawIdolTbaUsdcToOwner(tokenId: number): Promise<`0x${
   const balance = await fetchTbaUsdcBalance(tba);
   if (balance <= 0n) throw new Error("No USDC balance on this idol TBA");
 
-  return passkeyWithdrawTba(tba, wallet, balance);
+  return passkeyWithdrawTba(tokenId);
 }

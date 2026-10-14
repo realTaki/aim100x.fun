@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -164,27 +166,33 @@ test("cli: relative paths follow the script's root, not the caller's cwd", () =>
   assert.equal(existsSync(join(root, "public/og.jpg")), false);
 });
 
-test("every hand-over the og skill prints is one this script accepts", () => {
-  // The card and banner recipes live in the skill's references/, not SKILL.md.
-  const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
-  const docs = [
-    join(skillDir, "SKILL.md"),
-    ...readdirSync(join(skillDir, "references")).map((f) => join(skillDir, "references", f)),
-  ];
-  const invocations = docs.flatMap(
-    (path) => readFileSync(path, "utf8").match(/node scripts\/write-atomic\.mjs[^\n`]*/g) ?? [],
-  );
-  assert.ok(invocations.length >= 3, "og.jpg, x-banner.jpg and site.json each hand over");
+test("every documented hand-over is accepted and executes atomically in a fixture", (t) => {
+  const guide = readFileSync(join(TEMPLATE_ROOT, "scripts/brand-assets.md"), "utf8");
+  const invocations = guide.match(/node scripts\/write-atomic\.mjs[^\n`]*/g) ?? [];
+  assert.equal(invocations.length, 3, "og.jpg, x-banner.jpg and site.json each hand over");
+  const root = makeWorkspace();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "scripts"));
+  const script = join(root, "scripts/write-atomic.mjs");
+  copyFileSync(SCRIPT, script);
+  const targets = [];
   for (const line of invocations) {
     const argv = line.replace("node scripts/write-atomic.mjs", "").trim().split(/\s+/);
     const args = parseWriteAtomicArgs(argv);
     assert.equal(args.error, undefined, line);
-    assert.equal(
-      stagingError({ staged: args.staged, target: args.target, publicDir: "/workspace/public" }),
-      null,
-      line,
-    );
+    const staged = join(root, args.staged);
+    const target = join(root, args.target);
+    assert.equal(stagingError({ staged, target, publicDir: join(root, "public") }), null, line);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, "old bytes");
+    writeFileSync(staged, `new bytes for ${args.target}`);
+    const run = spawnSync(process.execPath, [script, ...argv], { cwd: tmpdir(), encoding: "utf8" });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.equal(readFileSync(target, "utf8"), `new bytes for ${args.target}`);
+    assert.equal(existsSync(staged), false);
+    targets.push(args.target);
   }
+  assert.deepEqual(targets, ["public/og.jpg", "public/x-banner.jpg", "src/lib/og/site.json"]);
 });
 
 test("cli: a missing staged file fails without touching the target", () => {

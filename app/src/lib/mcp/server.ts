@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { McpAgentSession } from "@/lib/mcp/auth.server";
 import { LonelyFunsClient } from "@/lib/mcp/client";
+import { IDOLS100X_CHAIN_ID } from "@/lib/idols100x";
 
 function response(value: unknown) {
   const structuredContent = value as Record<string, unknown>;
@@ -33,7 +34,7 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
       const account = await client.account();
       const idols = await client.listManageableIdols();
       return response({
-        chainId: 46630,
+        chainId: IDOLS100X_CHAIN_ID,
         idols100x: session.idols100x,
         agentAccount: account.address,
         deployed: account.deployed,

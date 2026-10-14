@@ -1,3 +1,5 @@
+import { monadTransport } from "../monad-rpc.ts";
+import { rejectMainnetSpending } from "./mainnet-disabled.server.ts";
 import { createPublicClient, createWalletClient, http, parseAbi, type Chain } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { readPaymasterSigner } from "../paymaster-signer.ts";
@@ -9,10 +11,11 @@ import {
 
 /** Delegate only the server-derived account; never replace another implementation. */
 export async function ensureAppWalletDelegation(owner: PrivateKeyAccount, chain: Chain) {
+  rejectMainnetSpending();
   if (chain.id !== mainnetWalletChain.id) throw new Error("API wallet delegation is mainnet-only");
   const reader = createPublicClient({
     chain,
-    transport: http(chain.rpcUrls.default.http[0], { retryCount: 0 }),
+    transport: monadTransport(chain.id),
   });
   if ((await reader.getChainId()) !== chain.id) throw new Error("Wallet RPC chain mismatch");
   const delegate = `0xef0100${APP_ACCOUNT_IMPLEMENTATION.slice(2)}`.toLowerCase();
@@ -45,7 +48,7 @@ export async function ensureAppWalletDelegation(owner: PrivateKeyAccount, chain:
   const writer = createWalletClient({
     chain,
     account: sponsor,
-    transport: http(chain.rpcUrls.default.http[0], { retryCount: 0 }),
+    transport: monadTransport(chain.id),
   });
   const baseFee = (await reader.getBlock()).baseFeePerGas ?? 0n;
   const maxFeePerGas = baseFee * 2n + 1_000_000_000n;

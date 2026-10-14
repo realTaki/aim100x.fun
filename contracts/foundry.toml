@@ -13,11 +13,11 @@ fs_permissions = [{ access = "read", path = "./" }]
 # Official Monad Foundry profile (docs.monad.xyz/guides/deploy-smart-contract/foundry).
 # Live RPC eth_chainId = 0x279f = 10143. Hardcoded — not a Vercel/env override.
 network = "monad"
-eth-rpc-url = "https://testnet-rpc.monad.xyz"
+eth-rpc-url = "${ALCHEMY_MONAD_TESTNET_RPC_URL}"
 chain_id = 10143
 
 [rpc_endpoints]
-monad_testnet = "https://testnet-rpc.monad.xyz"
+monad_testnet = "${ALCHEMY_MONAD_TESTNET_RPC_URL}"
 
 [fmt]
 line_length = 100

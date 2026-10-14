@@ -25,17 +25,17 @@ export async function handleMediaRequest(
   if (media.chatPaywalled) {
     const user = await deps.session(request);
     const access =
-      user?.loginAddress &&
+      user?.walletAddress &&
       (await verifyImageAccess(
         url.searchParams.get("access"),
-        user.id,
-        user.loginAddress,
+        user.walletAddress.toLowerCase(),
+        user.walletAddress,
         normalizeMediaId(id),
       ));
     let manager = false;
-    if (!access && user?.loginAddress && media.tokenId) {
+    if (!access && user?.walletAddress && media.tokenId) {
       const { isWalletIdolManager } = await import("./idol-manager.server");
-      manager = await isWalletIdolManager(user.loginAddress, media.tokenId);
+      manager = await isWalletIdolManager(user.walletAddress, media.tokenId);
     }
     if (!access && !manager)
       return new Response("Payment required", { status: 402, headers: privateHeaders });

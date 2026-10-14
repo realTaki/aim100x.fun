@@ -1,15 +1,8 @@
 import type { ReactNode } from "react";
-
-/**
- * App-wide client provider mounted once near the root (in `src/routes/__root.tsx`):
- *
- *   <AuthProvider><Outlet /></AuthProvider>
- *
- * The Passkey session client (`@/lib/auth/client`) needs no context provider,
- * its `useSession()` works standalone — so this is a passthrough today. It's
- * kept as the single, stable mount point for any future client-side providers
- * (e.g. a toast or theme provider) without churning the root shell.
- */
+import { PrivyProvider } from "@privy-io/react-auth";
+/** Privy authenticates only. Never create or select a Privy product wallet. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  const appId = import.meta.env.VITE_PRIVY_APP_ID;
+  if (!appId) return <>{children}</>;
+  return <PrivyProvider appId={appId} config={{ loginMethods: ["email", "google", "apple"], embeddedWallets: { ethereum: { createOnLogin: "off" }, solana: { createOnLogin: "off" } } }}>{children}</PrivyProvider>;
 }
