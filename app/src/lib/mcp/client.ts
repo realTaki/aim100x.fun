@@ -1,17 +1,15 @@
 import { monadTransport } from "../monad-rpc.ts";
 import {
   createPublicClient,
-  encodeFunctionData,
   formatUnits,
   http,
   isAddressEqual,
-  parseUnits,
   type Address,
   type Hex,
 } from "viem";
 import { IDOLS100X_ADDRESS, IDOLS100X_CHAIN_ID, IDOLS100X_IDOL_ABI } from "@/lib/idols100x";
 import type { McpAgentSession } from "@/lib/mcp/auth.server";
-import { executeAgentCall } from "@/lib/mcp/userop";
+import { rejectNonAppWalletWrites } from "../auth/app-wallet-only.ts";
 
 export type IdolContent = {
   name: string;
@@ -213,29 +211,10 @@ export class LonelyFunsClient {
   }
 
   async updatePricing(
-    tokenId: number,
-    prices: { subscribePriceUsdc?: string; imageUnlockPriceUsdc?: string },
+    _tokenId: number,
+    _prices: { subscribePriceUsdc?: string; imageUnlockPriceUsdc?: string },
   ): Promise<Hex> {
-    await this.requireRole(tokenId, 2);
-    const current = await this.getIdol(tokenId);
-    const subscribePriceUsdc = parseUnits(
-      prices.subscribePriceUsdc ?? current.subscribePriceUsdc,
-      6,
-    );
-    const imageUnlockPriceUsdc = parseUnits(
-      prices.imageUnlockPriceUsdc ?? current.imageUnlockPriceUsdc,
-      6,
-    );
-    if (subscribePriceUsdc <= 0n || imageUnlockPriceUsdc <= 0n) {
-      throw new Error("Subscription and image unlock prices must be greater than zero");
-    }
-    return this.write(
-      encodeFunctionData({
-        abi: IDOLS100X_IDOL_ABI,
-        functionName: "setIdolPricing",
-        args: [BigInt(tokenId), { subscribePriceUsdc, imageUnlockPriceUsdc }],
-      }),
-    );
+    return rejectNonAppWalletWrites();
   }
 
   async setPublic(tokenId: number, isPublic: boolean): Promise<{ ok: true }> {
@@ -249,20 +228,7 @@ export class LonelyFunsClient {
     return { ok: true };
   }
 
-  async setSalePrice(tokenId: number, priceUsdc: string): Promise<Hex> {
-    await this.requireRole(tokenId, 2);
-    const price = parseUnits(priceUsdc, 6);
-    if (price < 0n) throw new Error("Sale price cannot be negative");
-    return this.write(
-      encodeFunctionData({
-        abi: IDOLS100X_IDOL_ABI,
-        functionName: "setSalePrice",
-        args: [BigInt(tokenId), price],
-      }),
-    );
-  }
-
-  private write(data: Hex): Promise<Hex> {
-    return executeAgentCall(this.session, data);
+  async setSalePrice(_tokenId: number, _priceUsdc: string): Promise<Hex> {
+    return rejectNonAppWalletWrites();
   }
 }

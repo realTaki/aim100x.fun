@@ -1,5 +1,5 @@
 import { operationStore } from "./operation-store.server.ts";
-import { sponsorTestnetGas } from "./testnet-gas.server.ts";
+import { sponsorTestnetGas, MAX_PRODUCT_GAS } from "./testnet-gas.server.ts";
 import { runProductOperation } from "./operation-runner.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash } from "node:crypto";
@@ -81,13 +81,7 @@ export async function executeProductRequest(user: SessionUser, raw: unknown) {
       image: (imageId, ticket) =>
         prepareImagePayment(account.address.toLowerCase(), account.address, imageId, ticket),
     });
-  return executeTestnetCalls(
-    user,
-    requestId,
-    hashBody,
-    plan,
-    ["faucet", "subscribe"].includes(action.kind),
-  );
+  return executeTestnetCalls(user, requestId, hashBody, plan);
 }
 
 export async function executeTestnetCalls(
@@ -95,7 +89,11 @@ export async function executeTestnetCalls(
   requestId: string,
   bodyHash: string,
   plan: () => Promise<ProductCall[]>,
-  sponsored: boolean,
+  ports: {
+    store?: import("./operation-runner.ts").OperationStore;
+    active?: typeof authStore.active;
+    sponsor?: typeof sponsorTestnetGas;
+  } = {},
 ) {
   const account = boundAppWallet(user).account;
   const reader = createPublicClient({
@@ -113,19 +111,26 @@ export async function executeTestnetCalls(
   return runProductOperation(
     bodyHash,
     plan,
-    operationStore(user.id, requestId, bodyHash, (hash) =>
-      reader
-        .getTransactionReceipt({ hash })
-        .then((r) => r.status)
-        .catch(() => null),
-    ),
+    ports.store ??
+      operationStore(user.id, requestId, bodyHash, (hash) =>
+        reader
+          .getTransactionReceipt({ hash })
+          .then((r) => r.status)
+          .catch(() => null),
+      ),
     {
       async sign(call) {
-        if (!(await authStore.active(user.sessionId, user.id))) throw new Error("Session revoked");
+        if (!(await (ports.active ?? authStore.active)(user.sessionId, user.id)))
+          throw new Error("Session revoked");
         // Bounded gas for the allowlisted faucet, ERC20 transfer/approval and subscription.
         // Sponsor funds gas before APP signing; users need no testnet MON for these flows.
-        if (sponsored) await reader.call({ account: account.address, ...call });
-        const gas = sponsored ? await sponsorTestnetGas(account.address, requestId, index++) : {};
+        await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
+        const gas = await (ports.sponsor ?? sponsorTestnetGas)(
+          account.address,
+          requestId,
+          index++,
+          MAX_PRODUCT_GAS,
+        );
         const request = await writer.prepareTransactionRequest({
           ...call,
           ...gas,

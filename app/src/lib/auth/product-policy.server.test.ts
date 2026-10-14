@@ -26,3 +26,23 @@ it('only authorizes the explicit agent and supported role; image payments requir
  await assert.rejects(planProductAction({kind:'image',imageId:'x',paymentIntent:'forged'},wallet,reader),/ticket/);
  const calls=await planProductAction({kind:'agent',agent:other,role:1},wallet,reader);assert.equal(calls.length,1);assert.equal(calls[0].to,IDOLS100X_ADDRESS);
 });
+
+it('mint, buy, sale, pricing and tip stay in the APP collection policy with exact approvals', async()=>{
+ const { IDOLS100X_IDOL_ABI, IDOLS100X_FAN_ABI } = await import('../idols100x.ts');
+ for(const [action,name] of [
+  [{kind:'mint',maxAmount:'20000000'},'mint'],
+  [{kind:'buy',tokenId:1,maxAmount:'1000000'},'buy'],
+  [{kind:'tip',tokenId:1,amount:'1000000'},'pay'],
+ ] as const){
+  const calls=await planProductAction(action,wallet,reader);
+  assert.equal(calls[0].to,LONELY_USD_ADDRESS);
+  assert.equal(calls[1].to,IDOLS100X_ADDRESS);
+  assert.equal(decodeFunctionData({abi:name==='pay'?IDOLS100X_FAN_ABI:IDOLS100X_IDOL_ABI,data:calls[1].data}).functionName,name);
+  assert.equal(decodeFunctionData({abi:erc20Abi,data:calls[0].data}).args?.[0],IDOLS100X_ADDRESS);
+ }
+ for(const action of [{kind:'sale',tokenId:1,amount:'0'},{kind:'pricing',tokenId:1,subscribe:'1000000',image:'1000000'}]){
+  await assert.rejects(planProductAction(action,other,reader),/owner/);
+  assert.equal((await planProductAction(action,wallet,reader))[0].to,IDOLS100X_ADDRESS);
+ }
+ for(const raw of [{kind:'transferNFT',tokenId:1,to:other},{kind:'approveNFT',tokenId:1,spender:other},{kind:'buy',tokenId:1,maxAmount:'1000000',account:other}]) await assert.rejects(planProductAction(raw,wallet,reader));
+});

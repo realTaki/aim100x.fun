@@ -2,99 +2,67 @@
 
 Discover AI idols, chat through text and voice, or create a character with its own personality and scenes. aim100x.fun combines AI roleplay with NFT ownership on Monad: fans subscribe to idols, and creators shape their content, set prices, and receive payments.
 
-> Development branch update: the testnet text-flow implementation uses 1 LUSD per message, platform-funded testnet gas and direct MiniMax China text API. Mainnet spending remains disabled. See [scope, configuration and verification](docs/testnet-text-acceptance.md); older main-branch descriptions below are historical.
+- **Fans:** subscribe to idols and open private conversations.
+- **Creators:** use their APP wallet to own idol NFTs, edit content and set prices.
+- **Agents:** read/edit authorized private content through [MCP](https://aim100x.fun/mcp); chain writes are currently disabled.
 
-- **Fans:** discover public idols, subscribe, and open private conversations with text, voice notes, and photos.
-- **Creators:** own an idol NFT, edit its persona and scenes, manage media and prices, and offer the NFT for sale.
-- **Agents:** manage authorized idols through the [MCP endpoint](https://aim100x.fun/mcp).
-
-See [`/docs`](https://aim100x.fun/docs) for fan, creator, and agent workflows.
+See [`/docs`](https://aim100x.fun/docs) for fan, creator and agent workflows.
 
 ## Accounts and payments
 
-Two wallets serve different purposes:
+External wallets, Privy and Mera are **login providers only**. Each verified provider identity has an independent account and APP wallet. Accounts are not merged by email, display name or login address.
 
-| | Product wallet | API wallet |
-| --- | --- | --- |
-| Control | Your connected external wallet | Separate EOA derived and controlled by the server |
-| Network | Monad Testnet (`10143`) | Monad mainnet (`143`) |
-| Funds | LUSD for subscriptions, images, tips, minting and NFT purchases; MON for gas | USDC for x402 AI requests |
-| Approval | Wallet signatures for product transactions; token approval can require a separate confirmation | Automatic API payments after funding; platform sponsors EIP-7702 initialization only |
+The server derives a stable APP private key from the verified provider namespace/account identity and the original `WALLET_MASTER_SECRET`. The browser requests an allowed action; the server checks the session, ownership, prices and replay state, then constructs and signs the transaction. The private key and mnemonic never return to the browser. External wallets sign the login proof only; Privy authenticates via its access token; Mera uses the official passkey/PRF SDK for its login proof.
 
-Sign in by signing a five-minute SIWE challenge. A signed, 24-hour HttpOnly, Secure, SameSite=Strict cookie identifies the session. The external wallet owns the NFTs and is never delegated by the app. The six-digit device PIN is a screen privacy lock, separate from wallet authentication.
+**All supported business transactions use the APP wallet on Monad Testnet (10143).** This includes claiming LUSD, subscriptions, tips, image unlocks, NFT minting/buying/listing, pricing, granting/removing Agent roles and TBA withdrawal. APP-wallet ERC-20 approvals are constructed for the exact operation amount. No login-wallet transaction fallback is permitted.
 
-A **one-time LUSD subscription** (default 1 LUSD, configurable by the creator) unlocks an idol’s chat. Paid images are charged separately. AI API requests additionally use **mainnet USDC through x402**: this is request-level billing, not a fixed charge per chat message. One turn may make multiple requests. The client accepts allowlisted providers, Monad mainnet USDC and EIP-3009 authorization, with a **0.10 USDC cap per API request**. That cap is neither a per-turn nor a daily limit. Ambiguous paid requests are not automatically retried.
+The platform signer supplies the APP wallet's MON gas budget before each business transaction, within the existing **1 testnet MON per APP wallet per UTC day** allowance and fee ceiling. No user MON deposit is required. Exceeding the allowance or losing sponsorship confirmation stops the operation; it does not charge the login wallet or silently use the user's MON. Each business call is bounded to 2,000,000 gas; larger calls are rejected or revert. This is native MON prefunding, not an Alchemy Gas Manager/4337 paymaster integration.
 
-Each **Idols100x ERC-721** has an **ERC-6551 token-bound account (TBA)** receiving subscription and image-unlock LUSD. Transferring the NFT changes control of the idol and its TBA; assets stay at the same TBA address. NFT purchases pay the seller directly. Creative content is stored off-chain and access follows current ownership; browser chat history is not transferred with the NFT. Existing Passkey-wallet assets are not migrated automatically.
+A **one-time LUSD subscription** unlocks chat. Text uses **1 testnet LUSD per message** from the APP wallet to the platform signer, then invokes direct MiniMax China text API. This simulates request billing on testnet; it is not active mainnet USDC x402. Paid images retain their separate quoted LUSD unlock. Mainnet payments and delegation are closed.
+
+The APP wallet owns newly minted/purchased **Idols100x ERC-721** NFTs. Its **ERC-6551 token-bound account (TBA)** holds subscription/image receipts; withdrawals return to the current owner's APP wallet. A purchase pays the seller and changes owner to the buyer's APP wallet. The underlying ERC-721 supports transfers, but a direct NFT-transfer UI/server action is not implemented. Existing assets on external or old Passkey wallets are not automatically migrated.
 
 ## AI and storage
 
-- Chat: Grok 4.3 through Monid → BlockRun by default; MiniMax-M3 is selectable.
-- Images: Grok Imagine 2.0 for text-only jobs; MiniMax image-01 for private reference images. Explicit Grok selection rejects reference jobs before payment.
-- Speech: MiniMax Speech-2.8-turbo through Monid; transcription through Orthogonal/ElevenLabs. Voice design is unavailable through these routes; creators can save an existing voice ID or disable voice notes.
-- Content: private Neon idol configuration and media metadata; private R2 originals and thumbnails. Runtime does not use Notion; Notion is a migration source only. Chat history stays in this browser through SQLite WASM/OPFS, separated by account.
-
-A temporary MiniMax bridge can handle unpaid chat/image failures, including insufficient USDC. It uses the platform’s `MINIMAX_CN_API_KEY`, so fallback requests do not charge the user’s USDC wallet. It defaults on when that key exists; `AIM_TEMP_MINIMAX_FALLBACK=false` disables it. Submitted, settled, or uncertain payments do not trigger fallback. Login and content permissions still apply; voice/STT are unchanged.
+- Text: direct MiniMax China MiniMax-M3 after verified testnet LUSD payment.
+- Image/voice/STT routes retain older integrations; routes that require mainnet paid fetch remain blocked. Optional platform-paid image fallback depends on its configuration. Do not infer full media readiness from text tests.
+- Neon: account/challenge/session/operation records, idol configuration and media metadata.
+- R2: private originals/thumbnails. Browser chat history is isolated by APP account in SQLite WASM/OPFS.
+- MCP: authorized content/visibility operations remain; pricing and sale chain writes are unavailable until APP-account authorization is implemented.
 
 ## Implementation status
 
-This guide describes the current main branch. Implemented code and verified production behavior are distinct:
+This guide describes current code; offline tests and deployed anonymous-page checks are distinct from authenticated live acceptance.
 
-- **Implemented:** external-wallet SIWE login, a separate server-controlled EOA + EIP-7702 API wallet, mainnet USDC x402 requests, testnet LUSD subscriptions and NFT payments, private Neon/R2 content, and P-256 MCP authorization.
-- **Recorded verification:** the storage migration report documents 4 idol configurations, 22 images with originals and thumbnails, and production media-access checks. Funded AI requests, wallet delegation, and upstream prompt-cache savings are outside that verification.
-- **Under consideration, not implemented in main:** the proposed Mera single-passkey/derived-account flow, per-idol scoped keys, Privy login, Alchemy integration, and KIMI inference. Privy exists on a separate branch; the KIMI write-up is a placeholder. These are research or development candidates, not released capabilities or delivery commitments.
+- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; platform-funded gas within limits; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
+- **Recorded verification:** offline login/operation/replay/ownership tests and production anonymous UI/icon smoke. Provider configuration, real passkey ceremonies, database initialization and funded business transactions need live acceptance.
+- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and EIP-7702 delegation remain disabled.
 
-Subscriptions remain part of the product. Removing them in favor of message-only billing would be a product change, not a description of current behavior.
-
-See the [migration and verification report](docs/msgs-migration.md) for recorded evidence and remaining live checks. Historical creative fields on the legacy contract remain public.
+Subscriptions remain part of the product.
 
 ## Development
 
-```text
-app/         React 19 + TanStack Start + Vite + Tailwind v4; Nitro/Vercel
-contracts/   Foundry: Idols100x (ERC-721) and LonelyUSD (ERC-20)
-```
+Node 24; React 19, TanStack Start, Vite, Tailwind v4, Nitro/Vercel; Foundry contracts.
 
-Use Node 24, matching CI. From the repository root:
-
-```bash
+```sh
 npm ci
 npm run dev
+npm test
+npm run typecheck
+npm run build
 ```
 
-The development server listens on port 8080. Configure server-side services before using authenticated or paid flows; see `app/.env.example`. `VITE_AUTH_ENABLED=false` bypasses product login locally using a shared development user, but paid AI still requires an authenticated wallet.
+Dev uses port 8080. The normal build wrapper loads local configuration; no-secret acceptance builds use the Vite API with `envDir:false` from `app`.
 
-| Variable | Purpose |
+| Configuration | Purpose |
 | --- | --- |
-| `WALLET_MASTER_SECRET` | Stable server-only 32-byte hex secret for derived API wallets. Back it up: rotating it changes derived addresses and access to existing funds. |
-| `PAYMASTER_SIGNER` | Mainnet MON sponsor for API-wallet initialization; falls back to `GROKBOT_WEB3_WALLET`. Does not sponsor external-wallet product transactions. |
-| `X402_CHAT_MODEL` | `xai/grok-4.3` (default) or `minimax/minimax-m3`. |
-| `X402_IMAGE_MODEL` | Optional image routing override; default selection depends on whether the job has a reference. |
-| `AIM100X_DATABASE_URL` | Private Neon configuration and media metadata. |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Private R2 access; the bucket is fixed as `aim100x`. |
-| `MINIMAX_CN_API_KEY`, `AIM_TEMP_MINIMAX_FALLBACK` | Optional temporary chat/image fallback described above. |
+| `WALLET_MASTER_SECRET` | Preserve the original server secret; rotating changes APP addresses. |
+| `AIM100X_DATABASE_URL` | Auth, sessions, durable operations and content. Initialize required tables separately. |
+| `ALCHEMY_MONAD_TESTNET_RPC_URL` | Server-only Alchemy testnet endpoint. No public RPC fallback. |
+| `PAYMASTER_SIGNER` | Platform's testnet MON funding signer and text LUSD recipient. |
+| `MINIMAX_CN_API_KEY` | Direct MiniMax China text API. |
+| `PRIVY_APP_ID`, `VITE_PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY` | Matching public App IDs and current server ES256 public PEM verification. |
+| `MERA_RP_ID`, `VITE_MERA_RP_ID` | Matching permanent passkey RP hostname. |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Private media access. |
 
-Keep secrets server-side and out of Git. Storage schemas and content must be initialized for a new environment; follow the [migration guide](docs/msgs-migration.md).
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the app |
-| `npm run typecheck` | TypeScript checks |
-| `npm test` | Script and app unit tests |
-| `npm run test:src` | App source tests |
-| `npm run contracts:test` | Foundry tests; requires Forge |
-| `npm run build` | Production build and Vercel output sync |
-
-## Contracts and hosting
-
-Vercel Root Directory is `app`. Contract addresses are configured in [`idols100x.ts`](app/src/lib/idols100x.ts). Product contracts target Monad Testnet: Idols100x is an OpenZeppelin ERC-721 and LonelyUSD is a 6-decimal ERC-20. The legacy collection retains its old named fields; new creative configuration comes from Neon. See the [contract guide](contracts/README.md) for contract tooling and historical deployment details.
-
-## Agent MCP
-
-Connect Codex, Claude, or Cursor to `https://aim100x.fun/mcp` using Streamable HTTP and an `lf1.` bearer token. Create and authorize a separate software P-256 Agent Account in Creator Center → Agent account, then copy its connection configuration.
-
-```bash
-codex mcp add aim100x --url https://aim100x.fun/mcp --bearer-token-env-var LONELYFUNS_MCP_TOKEN
-```
-
-MCP verifies the signed proof and binds the Agent Account through its factory and, when deployed, its on-chain public key. Signing keys supplied for writes stay in request memory. **Content** authorization permits content and visibility edits; **Full** also permits price changes. Authorization follows the NFT owner across all idols they own, rather than using a separate key per idol. Content changes save to Neon; pricing uses the separate ERC-4337 Agent Account. MCP does not expose minting, NFT transfers, chat, media uploads, or withdrawals.
+Keep secrets out of Git and browser-prefixed variables. Privy allowed origins/login methods and Mera HTTPS/PRF compatibility require hosted verification. Auth tables are not created by deployment. See [APP-wallet audit](docs/app-wallet-only-acceptance.md), [login configuration](docs/app-wallet-auth.md) and [testnet text evidence](docs/testnet-text-acceptance.md).
