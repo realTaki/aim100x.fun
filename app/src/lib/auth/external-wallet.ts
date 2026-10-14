@@ -1,3 +1,4 @@
+import { monadTransport } from "../monad-rpc.ts";
 import {
   createPublicClient,
   createWalletClient,
@@ -59,7 +60,7 @@ export async function executeExternalCalls(
   const wallet = await externalSigningClient(expected, testnetWalletChain, deps.provider);
   const reader = createPublicClient({
     chain: testnetWalletChain,
-    transport: http(testnetWalletChain.rpcUrls.default.http[0], { retryCount: 0 }),
+    transport: monadTransport(10143),
   });
   const wait =
     deps.waitForReceipt ?? ((hash) => reader.waitForTransactionReceipt({ hash, timeout: 30_000 }));

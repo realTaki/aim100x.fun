@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import {
@@ -34,7 +35,7 @@ export type ImagePayment = {
 export const imagePaymentReader = () =>
   createPublicClient({
     chain: testnetWalletChain,
-    transport: http(testnetWalletChain.rpcUrls.default.http[0], { retryCount: 0 }),
+    transport: monadTransport(10143),
   });
 export async function issueImagePayment(
   userId: string,

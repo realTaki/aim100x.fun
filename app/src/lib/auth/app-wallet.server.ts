@@ -1,3 +1,4 @@
+import { accountIdFor, normalizeIdentity, type LoginIdentity } from "./identity.ts";
 import { createHmac } from "node:crypto";
 import { entropyToMnemonic } from "@scure/bip39";
 import { getAddress, toHex, type Address } from "viem";
@@ -28,13 +29,22 @@ export function sessionSigningKey() {
   return createHmac("sha256", walletMasterKey()).update("aim100x.fun/session/v1").digest();
 }
 
+/** v1 browser addresses are frozen; other namespaces use the immutable account ID. */
+export function deriveIdentityWallet(input: LoginIdentity, secret = process.env.WALLET_MASTER_SECRET) {
+  const identity = normalizeIdentity(input);
+  if (identity.provider === "wallet") return deriveAppWallet(identity.subject, secret);
+  const entropy = createHmac("sha256", walletMasterKey(secret))
+    .update("aim100x.fun/app-wallet/v2\0").update(accountIdFor(identity)).digest();
+  const mnemonic = entropyToMnemonic(entropy, english);
+  const key = mnemonicToAccount(mnemonic).getHdKey().privateKey!;
+  return { account: privateKeyToAccount(toHex(key)), mnemonic };
+}
 export function boundAppWallet(session: {
-  loginAddress: Address | null;
+  identity: LoginIdentity;
   walletAddress: Address | null;
 }) {
-  if (!session.loginAddress || !session.walletAddress) throw new Error("Wallet login required");
-  const wallet = deriveAppWallet(session.loginAddress);
-  if (wallet.account.address.toLowerCase() !== session.walletAddress.toLowerCase())
-    throw new Error("Wallet session changed; sign in again");
+  const wallet = deriveIdentityWallet(session.identity);
+  if (!session.walletAddress || wallet.account.address.toLowerCase() !== session.walletAddress.toLowerCase())
+    throw new Error("Wallet derivation changed; restore the original master secret");
   return wallet;
 }

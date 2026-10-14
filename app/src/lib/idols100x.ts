@@ -9,7 +9,7 @@
 export const IDOLS100X_CHAIN_ID = 10143;
 
 /** Monad testnet public RPC. Hardcoded — not a Vercel env var. */
-export const IDOLS100X_RPC_URL = "https://testnet-rpc.monad.xyz";
+export const IDOLS100X_RPC_URL = "/api/rpc?chainId=10143";
 
 export const IDOLS100X_EXPLORER = "https://testnet.monadvision.com";
 

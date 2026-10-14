@@ -13,15 +13,15 @@ export async function resolveUserAiBackend(): Promise<AiBackend> {
     kind: "x402",
     apiKey: "",
     imageModel: env("X402_IMAGE_MODEL"),
-    loginAddress: session.loginAddress!,
+    identity: session.identity,
     walletAddress: session.walletAddress!,
   };
 }
 export function backendWallet(backend: AiBackend) {
-  if (backend.kind !== "x402" || !backend.loginAddress || !backend.walletAddress)
+  if (backend.kind !== "x402" || !backend.identity || !backend.walletAddress)
     throw new Error("Wallet login required");
   return boundAppWallet({
-    loginAddress: backend.loginAddress,
+    identity: backend.identity,
     walletAddress: backend.walletAddress,
   }).account;
 }

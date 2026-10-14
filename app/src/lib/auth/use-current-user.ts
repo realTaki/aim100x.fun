@@ -10,6 +10,8 @@ import {
 /** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
   id: string;
+  accountId?: string;
+  legacyLoginAddress?: string;
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
@@ -43,6 +45,8 @@ function appUserFromRow(row: WalletSessionRow): AppUser {
   if (cached?.id === row.id) return cached.user;
   const user: AppUser = {
     id: row.id,
+    accountId: row.accountId,
+    legacyLoginAddress: row.provider === "wallet" ? row.loginAddress : undefined,
     displayName: row.displayName,
     primaryEmail: row.primaryEmail,
     profileImageUrl: null,

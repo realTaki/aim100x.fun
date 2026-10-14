@@ -1,130 +1,73 @@
 import { afterEach, beforeEach, it } from "node:test";
 import assert from "node:assert/strict";
 import { privateKeyToAccount } from "viem/accounts";
+import { decodeJwt, SignJWT } from 'jose';
+import { sessionSigningKey } from './app-wallet.server.ts';
+import { parseSiweMessage } from 'viem/siwe';
 import { verifyMessage } from "viem";
-import { handleWalletAuthRequest, sessionUserFromRequest } from "./wallet-auth-http.server.ts";
+import { handleWalletAuthRequest, sessionUserFromRequest, type AuthDeps } from "./wallet-auth-http.server.ts";
+import { memoryAuthStore } from "./auth-test-store.ts";
 import { deriveAppWallet } from "./app-wallet.server.ts";
-import { SESSION_TOKEN_COOKIE } from "./wallet-auth.server.ts";
-const external = privateKeyToAccount(("0x" + "01".repeat(32)) as `0x${string}`);
-const original = process.env.WALLET_MASTER_SECRET;
-beforeEach(() => {
-  process.env.WALLET_MASTER_SECRET = "33".repeat(32);
-});
-afterEach(() => {
-  if (original === undefined) delete process.env.WALLET_MASTER_SECRET;
-  else process.env.WALLET_MASTER_SECRET = original;
-});
-const origin = "https://aim100x.fun";
-function req(path: string, body: unknown, cookie?: string, source = origin) {
-  return new Request(`${origin}/api/auth/${path}`, {
-    method: "POST",
-    headers: { origin: source, "Content-Type": "application/json", ...(cookie ? { cookie } : {}) },
-    body: JSON.stringify(body),
-  });
+const signer=privateKeyToAccount(('0x'+'01'.repeat(32)) as `0x${string}`), origin='https://aim100x.fun';
+const saved={key:process.env.WALLET_MASTER_SECRET,rp:process.env.MERA_RP_ID,app:process.env.PRIVY_APP_ID};
+beforeEach(()=>{process.env.WALLET_MASTER_SECRET='33'.repeat(32);process.env.MERA_RP_ID='aim100x.fun';process.env.PRIVY_APP_ID='test-app';});
+afterEach(()=>{for(const [name,value] of Object.entries({WALLET_MASTER_SECRET:saved.key,MERA_RP_ID:saved.rp,PRIVY_APP_ID:saved.app})) {if(value===undefined)delete process.env[name];else process.env[name]=value;}});
+function req(path:string,body:unknown,cookie?:string,source=origin){return new Request(origin+'/api/auth/'+path,{method:'POST',headers:{origin:source,'Content-Type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(body)});}
+function dependencies():AuthDeps{return {store:memoryAuthStore(),verifySignature:(message,signature,address)=>verifyMessage({message,signature,address})};}
+async function challenge(deps:AuthDeps,provider='wallet'){
+ const res=await handleWalletAuthRequest(req('wallet/challenge',{provider,address:signer.address}),deps);assert.equal(res.status,200);
+ return {message:(await res.json()).message as string,cookie:res.headers.getSetCookie()[0].split(';')[0]};
 }
-async function challenge() {
-  const res = await handleWalletAuthRequest(req("wallet/challenge", { address: external.address }));
-  assert.equal(res.status, 200);
-  return {
-    message: (await res.json()).message as string,
-    cookie: res.headers.getSetCookie()[0].split(";")[0],
-  };
+async function login(deps:AuthDeps,provider='wallet'){
+ const c=await challenge(deps,provider),signature=await signer.signMessage({message:c.message});
+ const res=await handleWalletAuthRequest(req('wallet/verify',{message:c.message,signature},c.cookie),deps);assert.equal(res.status,200);
+ return {cookie:res.headers.getSetCookie()[0].split(';')[0],body:await res.json(),c,signature};
 }
-it("signs in with external wallet, initializes its derived EOA and restores from HttpOnly cookie", async () => {
-  const c = await challenge();
-  const signature = await external.signMessage({ message: c.message });
-  let initialized: string | undefined;
-  const res = await handleWalletAuthRequest(
-    req("wallet/verify", { message: c.message, signature }, c.cookie),
-    {
-      initialize: async (identity) => {
-        initialized = identity;
-        return deriveAppWallet(identity).account.address;
-      },
-      verifySignature: (message, sig, address) =>
-        verifyMessage({ message, signature: sig, address }),
-    },
-  );
-  assert.equal(res.status, 200);
-  assert.equal(initialized, external.address);
-  const body = await res.json();
-  assert.equal(body.address, deriveAppWallet(external.address).account.address);
-  assert.equal(body.token, undefined);
-  const cookies = res.headers.getSetCookie();
-  const session = cookies.find((c) => c.startsWith(SESSION_TOKEN_COOKIE + "="))!;
-  assert.match(session, /HttpOnly/);
-  assert.match(session, /SameSite=Strict/);
-  assert.match(
-    cookies.find((c) => c.startsWith("__Host-aim-wallet.challenge="))!,
-    /Max-Age=0/,
-  );
-  const user = await sessionUserFromRequest(
-    new Request(origin, { headers: { cookie: session.split(";")[0] } }),
-  );
-  assert.equal(user?.id, external.address.toLowerCase());
-  assert.equal(user?.walletAddress, body.address);
-  const denied = await handleWalletAuthRequest(
-    req("wallet/send", { calls: [] }, session.split(";")[0]),
-  );
-  assert.equal(denied.status, 403);
+it('browser and Mera use independently verified namespaces; login never delegates or sends funds',async()=>{
+ const deps=dependencies(), a=await login(deps), b=await login(deps,'mera'), again=await login(deps);
+ assert.equal(a.body.user.walletAddress,deriveAppWallet(signer.address).account.address);
+ assert.equal(a.body.user.id,again.body.user.id);assert.notEqual(a.body.user.id,b.body.user.id);assert.notEqual(a.body.user.walletAddress,b.body.user.walletAddress);
+ assert.ok(await sessionUserFromRequest(new Request(origin,{headers:{cookie:a.cookie}}),deps.store));
 });
-it("rejects changed challenges, signatures from other wallets, missing cookies and sibling origins", async () => {
-  const c = await challenge();
-  const wrong = privateKeyToAccount(("0x" + "02".repeat(32)) as `0x${string}`);
-  const signature = await wrong.signMessage({ message: c.message });
-  let called = false;
-  const deps = {
-    initialize: async () => {
-      called = true;
-      return external.address;
-    },
-    verifySignature: (message: string, sig: `0x${string}`, address: `0x${string}`) =>
-      verifyMessage({ message, signature: sig, address }),
-  };
-  assert.equal(
-    (
-      await handleWalletAuthRequest(
-        req("wallet/verify", { message: c.message, signature }, c.cookie),
-        deps,
-      )
-    ).status,
-    401,
-  );
-  assert.equal(
-    (
-      await handleWalletAuthRequest(
-        req("wallet/verify", { message: c.message + "changed", signature }, c.cookie),
-        deps,
-      )
-    ).status,
-    401,
-  );
-  assert.equal(
-    (await handleWalletAuthRequest(req("wallet/verify", { message: c.message, signature }), deps))
-      .status,
-    401,
-  );
-  assert.equal(
-    (
-      await handleWalletAuthRequest(
-        req(
-          "wallet/challenge",
-          { address: external.address },
-          undefined,
-          "https://evil.aim100x.fun",
-        ),
-      )
-    ).status,
-    403,
-  );
-  assert.equal(called, false);
+it('consumes each challenge atomically and rejects replay, tampering, cross-origin and other signers',async()=>{
+ const deps=dependencies(), a=await login(deps);
+ assert.equal((await handleWalletAuthRequest(req('wallet/verify',{message:a.c.message,signature:a.signature},a.c.cookie),deps)).status,401);
+ const c=await challenge(deps), wrong=privateKeyToAccount(('0x'+'02'.repeat(32)) as `0x${string}`);
+ for(const [message,signature] of [[c.message,await wrong.signMessage({message:c.message})],[c.message+'x',a.signature]])
+ assert.equal((await handleWalletAuthRequest(req('wallet/verify',{message,signature},c.cookie),deps)).status,401);
+ assert.equal((await handleWalletAuthRequest(req('wallet/challenge',{address:signer.address},undefined,'https://evil.aim100x.fun'),deps)).status,403);
 });
-it("ignores bearer tokens and rejects unauthenticated sponsorship", async () => {
-  assert.equal(
-    await sessionUserFromRequest(
-      new Request(origin, { headers: { Authorization: "Bearer legacy" } }),
-    ),
-    null,
-  );
-  assert.equal((await handleWalletAuthRequest(req("wallet/send", { calls: [] }))).status, 401);
+it('Privy ignores client subject and only accepts the server-verified identity in configured app namespace',async()=>{
+ const deps=dependencies();deps.verifyPrivy=async()=>({provider:'privy',issuer:'privy.io/test-app',subject:'did:privy:verified'});
+ const c=await challenge(deps,'privy');
+ const r=await handleWalletAuthRequest(req('wallet/verify',{message:c.message,accessToken:'fixture',subject:'did:privy:attacker'},c.cookie),deps);
+ assert.equal(r.status,200);assert.equal((await r.json()).user.identity.subject,'did:privy:verified');
+ const other=await challenge(deps,'privy');deps.verifyPrivy=async()=>({provider:'privy',issuer:'privy.io/other-app',subject:'did:privy:verified'});
+ assert.equal((await handleWalletAuthRequest(req('wallet/verify',{message:other.message,accessToken:'fixture'},other.cookie),deps)).status,401);
+});
+it('requires a live cookie session for product operations and revokes it at logout',async()=>{
+ const deps=dependencies();let calls=0;deps.execute=async user=>{calls++;return {accountId:user.id};};
+ assert.equal((await handleWalletAuthRequest(req('wallet/send',{}),deps)).status,401);
+ const a=await login(deps);
+ assert.equal((await handleWalletAuthRequest(req('wallet/send',{},a.cookie),deps)).status,200);assert.equal(calls,1);
+ await handleWalletAuthRequest(req('sign-out',{},a.cookie),deps);
+ assert.equal((await handleWalletAuthRequest(req('wallet/send',{},a.cookie),deps)).status,401);assert.equal(calls,1);
+});
+
+it('uses testnet login challenges and rejects expired challenges and concurrent replay',async()=>{
+ const deps=dependencies(),c=await challenge(deps);
+ assert.equal(parseSiweMessage(c.message).chainId,10143);
+ const signature=await signer.signMessage({message:c.message});
+ const results=await Promise.all([1,2].map(()=>handleWalletAuthRequest(req('wallet/verify',{message:c.message,signature},c.cookie),deps)));
+ assert.deepEqual(results.map(r=>r.status).sort(),[200,401]);
+ const fresh=await challenge(deps);
+ const claims=decodeJwt(fresh.cookie.slice(fresh.cookie.indexOf('=')+1));
+ const expired=await new SignJWT({...claims,exp:Math.floor(Date.now()/1000)-10}).setProtectedHeader({alg:'HS256'}).sign(sessionSigningKey());
+ assert.equal((await handleWalletAuthRequest(req('wallet/verify',{message:fresh.message,signature:await signer.signMessage({message:fresh.message})},fresh.cookie.split('=')[0]+'='+expired),deps)).status,401);
+});
+it('rejects Mera RP mismatch and leaves mainnet initialization disabled after login',async()=>{
+ const deps=dependencies();process.env.MERA_RP_ID='another.domain';
+ assert.equal((await handleWalletAuthRequest(req('wallet/challenge',{provider:'mera',address:signer.address}),deps)).status,503);
+ const a=await login(deps);
+ assert.equal((await handleWalletAuthRequest(req('wallet/prepare',{},a.cookie),deps)).status,503);
 });

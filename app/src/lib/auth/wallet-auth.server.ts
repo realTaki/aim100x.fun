@@ -1,69 +1,50 @@
 import { SignJWT, jwtVerify } from "jose";
-import { getAddress, type Address } from "viem";
-import { deriveAppWallet, sessionSigningKey } from "./app-wallet.server.ts";
+import type { Address } from "viem";
+import { deriveIdentityWallet, sessionSigningKey } from "./app-wallet.server.ts";
+import { browserIdentity, accountIdFor, normalizeIdentity, type LoginIdentity } from "./identity.ts";
+import { authStore, randomUUID, type AuthStore } from "./account-store.server.ts";
 import { IDOLS100X_CHAIN_ID } from "../idols100x.ts";
-
 export const SESSION_TOKEN_COOKIE = "__Host-aim-wallet.session";
 export const SESSION_COOKIE_MAX_AGE_SEC = 60 * 60 * 24;
 export const authConfigured = process.env.VITE_AUTH_ENABLED?.trim() !== "false";
-const ISSUER = "aim100x.fun/wallet-login/v1";
+const ISSUER = "aim100x.fun/app-login/v2";
 export type SessionUser = {
-  id: string;
-  email: string | null;
-  name: string | null;
-  walletAddress: Address | null;
-  loginAddress: Address | null;
-  chainId: number | null;
-  isGate: boolean;
-  embedded: boolean;
-  passkeyX: string | null;
-  passkeyY: string | null;
-  passkeyCredentialId: string | null;
+  /** Stable internal identity. Product authorization uses walletAddress explicitly. */
+  id: string; identity: LoginIdentity; sessionId: string; authenticatedAt: number;
+  email: string | null; name: string | null; walletAddress: Address;
+  loginAddress: Address | null; chainId: number; isGate: boolean; embedded: boolean;
+  passkeyX: string | null; passkeyY: string | null; passkeyCredentialId: string | null;
 };
-export async function mintWalletSessionToken(loginAddress: Address): Promise<string> {
-  const wallet = deriveAppWallet(loginAddress).account.address;
-  return new SignJWT({ typ: "app-wallet", login: loginAddress.toLowerCase() })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuer(ISSUER)
-    .setAudience("app")
-    .setSubject(wallet.toLowerCase())
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_COOKIE_MAX_AGE_SEC}s`)
-    .sign(sessionSigningKey());
+export async function mintWalletSessionToken(input: LoginIdentity | Address, store: AuthStore = authStore): Promise<string> {
+  const identity = normalizeIdentity(typeof input === "string" ? browserIdentity(input) : input);
+  const address = deriveIdentityWallet(identity).account.address;
+  const account = await store.account(identity, address);
+  const sessionId = randomUUID();
+  await store.session(sessionId, account.id, Date.now() + SESSION_COOKIE_MAX_AGE_SEC * 1000);
+  return new SignJWT({ typ: "app-wallet-v2", identity, wallet: address })
+    .setProtectedHeader({ alg: "HS256" }).setIssuer(ISSUER).setAudience("app")
+    .setSubject(account.id).setJti(sessionId).setIssuedAt()
+    .setExpirationTime(`${SESSION_COOKIE_MAX_AGE_SEC}s`).sign(sessionSigningKey());
 }
-export async function verifySessionToken(token: string): Promise<SessionUser | null> {
+export async function verifySessionToken(token: string, store: AuthStore = authStore): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, sessionSigningKey(), {
-      algorithms: ["HS256"],
-      issuer: ISSUER,
-      audience: "app",
-      requiredClaims: ["exp", "iat", "sub"],
+    const { payload: p } = await jwtVerify(token, sessionSigningKey(), {
+      algorithms: ["HS256"], issuer: ISSUER, audience: "app", requiredClaims: ["exp", "iat", "sub", "jti"],
     });
-    if (payload.typ !== "app-wallet" || typeof payload.login !== "string" || !payload.sub)
-      return null;
-    const loginAddress = getAddress(payload.login);
-    const wallet = deriveAppWallet(loginAddress).account.address;
-    if (wallet.toLowerCase() !== payload.sub) return null;
+    if (p.typ !== "app-wallet-v2" || !p.identity || typeof p.identity !== "object") return null;
+    const identity = normalizeIdentity(p.identity as LoginIdentity);
+    const wallet = deriveIdentityWallet(identity).account.address;
+    if (p.sub !== accountIdFor(identity) || p.wallet !== wallet || !await store.active(p.jti!, p.sub!)) return null;
+    await store.account(identity, wallet); // Fail closed on a stored derivation mismatch.
     return {
-      id: loginAddress.toLowerCase(),
-      email: null,
-      name: loginAddress,
-      walletAddress: wallet,
-      loginAddress,
-      chainId: IDOLS100X_CHAIN_ID,
-      embedded: false,
-      isGate: false,
-      passkeyX: null,
-      passkeyY: null,
-      passkeyCredentialId: null,
+      id: p.sub!, identity, sessionId: p.jti!, authenticatedAt: p.iat!, email: null, name: wallet, walletAddress: wallet,
+      loginAddress: identity.provider === "wallet" ? identity.subject as Address : null,
+      chainId: IDOLS100X_CHAIN_ID, embedded: true, isGate: false,
+      passkeyX: null, passkeyY: null, passkeyCredentialId: null,
     };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 export function sessionCookieHeader(token: string, maxAgeSec = SESSION_COOKIE_MAX_AGE_SEC) {
   return `${SESSION_TOKEN_COOKIE}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}`;
 }
-export function expireSessionCookieHeader() {
-  return sessionCookieHeader("", 0);
-}
+export const expireSessionCookieHeader = () => sessionCookieHeader("", 0);

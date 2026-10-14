@@ -1,3 +1,4 @@
+import { monadTransport } from "../monad-rpc.ts";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import {
   PASSKEY_ACCOUNT_ABI,
@@ -38,7 +39,7 @@ const publicClient = createPublicClient({
     nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
     rpcUrls: { default: { http: [MCP_CHAIN.rpcUrl] } },
   },
-  transport: http(MCP_CHAIN.rpcUrl),
+  transport: monadTransport(10143),
 });
 
 function bearerFromRequest(request: Request): string | null {

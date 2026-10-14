@@ -221,8 +221,8 @@ export function UserProfileScreen() {
           <ApiWalletBalance key={user.apiWalletAddress} account={user.apiWalletAddress} />
         ) : null}
         <p className="mt-3 max-w-sm text-xs text-muted">
-          NFTs, subscriptions and tips use your external wallet on Monad testnet. Your wallet signs
-          each payment and pays MON gas.
+          NFTs, subscriptions and tips use your APP wallet on Monad Testnet.
+          Fund it with testnet MON for gas; the server signs confirmed product actions.
         </p>
         {wallet ? <LonelyUsdFaucet key={wallet} account={wallet} /> : null}
         {draftCustomAvatar && defaultAvatarUrl ? (

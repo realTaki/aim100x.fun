@@ -1,3 +1,4 @@
+import { monadTransport } from "../monad-rpc.ts";
 import {
   concat,
   createPublicClient,
@@ -46,7 +47,7 @@ const monadChain = {
 
 const publicClient = createPublicClient({
   chain: monadChain,
-  transport: http(IDOLS100X_RPC_URL),
+  transport: monadTransport(10143),
 });
 
 export type PasskeyCall = {
