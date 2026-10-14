@@ -28,6 +28,10 @@ jobs:
 
   contracts:
     runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROFILE: default
+      ETH_RPC_URL: ""
+      FOUNDRY_ETH_RPC_URL: ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,4 +40,9 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: node app/scripts/forge.mjs test
+        with:
+          version: v1.8.5
+      - name: Compile contracts and prepare the local compiler
+        run: node app/scripts/forge.mjs build
+      - name: Run all contract assertions without network access
+        run: node app/scripts/forge.mjs test --offline -vv
