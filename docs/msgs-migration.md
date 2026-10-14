@@ -71,6 +71,7 @@ The full ordered initialization, dry-run inventory, config import, media import 
 | Authorization lifecycle | Anonymous and invalid-session protected requests rejected; valid fixture session + media ticket can stream original and thumbnail |
 | Edit/archive/availability lifecycle | Upload, replacement, thumbnail clearing/recreation, type/rating update, missing-object and wrong-idol checks, archive denial passed |
 | Fixture cleanup | No fixture row or object remains; final totals are 4 config rows, 22 media rows and exactly 44 R2 objects |
+| Production HTTP | Actual aim100x.fun requests: authorized original/thumbnail 200; anonymous, missing-session and invalid-session protected requests 402; public metadata 200; production fixture cleaned |
 | Local checks | Configuration allowlist, media HTTP and image-payment test files passed (3/3); TypeScript checking passed |
 
 `idol_config` and `aim_idol_media` contain only idol content. Existing Neon-managed `neon_auth` tables were not populated or modified, and no account rows were read. The old `idols100x` and `msgs100x` buckets were not changed. No Notion writes, chain transactions, wallet delegation or real payments were submitted. The authorization check uses only an isolated media fixture and short-lived test session/ticket, without creating an account or settling a payment.
@@ -83,7 +84,7 @@ Vercel's existing Neon resource now supplies 18 `AIM100X_` variables as Secrets 
 
 The task-environment `AIM100X_POSTGRES_HOST` still has a malformed value; it should contain only the pooled hostname from `AIM100X_DATABASE_URL`, without quotes, connection-string parts or another assignment. It is not read by this migration or runtime. `NOTION_IMAGES_DATABASE_ID` is not persistently configured; supply it explicitly for any later migration rerun.
 
-The server-only `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` have been added to Vercel as Production/Preview Secrets with explicit user authorization. Local/live-storage verification is complete. The source update triggers deployment with these variables; production HTTP delivery is verified separately after the matching deployment is ready.
+The server-only `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` have been added to Vercel as Production/Preview Secrets with explicit user authorization. Production deployment `8281326` reached READY with these variables. Actual HTTPS verification on aim100x.fun passed for authorized original/thumbnail delivery, anonymous/invalid-session denial and public metadata. The isolated production fixture was removed; no source media or account data was changed.
 
 Historical creative fields already on the legacy contract remain publicly readable; this migration cannot erase them. Funded AI/payment flows are outside the storage migration verification.
 
