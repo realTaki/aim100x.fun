@@ -12,6 +12,7 @@ import {
 } from "viem";
 import { externalProviderFor } from "./external-wallet-provider.ts";
 import { testnetWalletChain } from "./app-wallet-chain.ts";
+import { assertTestnetRpc } from "../monad-rpc-policy.ts";
 export type ExternalCall = { to: Address; data: Hex; value?: bigint };
 function unknownChain(error: unknown): boolean {
   let cause = error;
@@ -26,6 +27,7 @@ export async function externalSigningClient(
   chain: Chain,
   provider?: EIP1193Provider,
 ) {
+  assertTestnetRpc(chain.id);
   const wallet = createWalletClient({
     chain,
     transport: custom(provider ?? (await externalProviderFor(expected)), { retryCount: 0 }),
@@ -38,8 +40,9 @@ export async function externalSigningClient(
       await wallet.switchChain({ id: chain.id });
     } catch (error) {
       if (!unknownChain(error)) throw error;
-      await wallet.addChain({ chain });
-      await wallet.switchChain({ id: chain.id });
+      // The app proxy is read-only, so it cannot be a wallet's broadcast RPC.
+      // Never give the external wallet the server's credential-bearing URL.
+      throw new Error("Add Monad Testnet (10143) in your wallet settings, then retry.");
     }
   }
   if ((await wallet.getChainId()) !== chain.id)

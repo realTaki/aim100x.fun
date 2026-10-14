@@ -116,3 +116,35 @@ it("stops after an ambiguous approval receipt or an account switch", async () =>
   );
   assert.equal(switched.sent.length, 1);
 });
+
+it("rejects mainnet before requesting an external wallet and never adds the read-only proxy as wallet RPC", async () => {
+  const { externalSigningClient } = await import("./external-wallet.ts");
+  const { mainnetWalletChain, testnetWalletChain } = await import("./app-wallet-chain.ts");
+  const noCalls: EIP1193Provider = {
+    on() {},
+    removeListener() {},
+    request: async () => {
+      assert.fail("Must not contact mainnet wallet");
+    },
+  };
+  await assert.rejects(
+    externalSigningClient(external, mainnetWalletChain, noCalls),
+    /mainnet RPC is disabled/,
+  );
+  const methods: string[] = [];
+  const provider = {
+    request: async ({ method }: { method: string }) => {
+      methods.push(method);
+      if (method === "eth_requestAccounts") return [external];
+      if (method === "eth_chainId") return "0x1";
+      if (method === "wallet_switchEthereumChain")
+        throw Object.assign(new Error("Unknown chain"), { code: 4902 });
+      assert.fail(`Unexpected wallet method: ${method}`);
+    },
+  } as EIP1193Provider;
+  await assert.rejects(
+    externalSigningClient(external, testnetWalletChain, provider),
+    /Add Monad Testnet \(10143\)/,
+  );
+  assert.ok(!methods.includes("wallet_addEthereumChain"));
+});
