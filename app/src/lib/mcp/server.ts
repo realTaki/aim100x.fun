@@ -102,7 +102,7 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
     "update_idol_pricing",
     {
       description:
-        "Update subscription and/or image unlock prices in human-readable LUSD (up to 6 decimals). Requires Full authorization.",
+        "Unavailable: change chain prices through the authenticated APP-wallet Creator Center.",
       inputSchema: z
         .object({
           tokenId: z.number().int().positive(),
@@ -141,7 +141,7 @@ export function createLonelyFunsMcpServer(session: McpAgentSession): McpServer {
     "set_idol_sale_price",
     {
       description:
-        'Set an idol sale price in human-readable LUSD. Use "0" to take it off sale. Requires Full authorization.',
+        'Unavailable: change sale prices through the authenticated APP-wallet Creator Center.',
       inputSchema: z.object({
         tokenId: z.number().int().positive(),
         priceUsdc: z.string().describe('Example: "20"; at most 6 decimal places'),

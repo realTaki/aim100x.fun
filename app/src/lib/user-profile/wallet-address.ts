@@ -1,24 +1,11 @@
 import type { AppUser } from "@/lib/auth/use-current-user";
-import { ACCOUNT_EMAIL_DOMAIN } from "@/lib/auth/account-host";
-
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
-
-/** External-wallet identity from the verified login session. */
+/** Product owner comes only from the authenticated APP wallet, never identity/display fields. */
 export function walletAddressFromUser(user: AppUser): `0x${string}` | null {
-  const id = user.id.trim();
-  if (WALLET_RE.test(id)) return id as `0x${string}`;
-  const email = user.primaryEmail?.trim();
-  if (email?.endsWith(`@${ACCOUNT_EMAIL_DOMAIN}`)) {
-    const raw = email.slice(0, email.indexOf("@"));
-    if (WALLET_RE.test(raw)) return raw as `0x${string}`;
-  }
-  const name = user.displayName?.trim();
-  if (name && WALLET_RE.test(name)) return name as `0x${string}`;
-  return null;
+  if (user.isDevFallback) return null;
+  const address = user.apiWalletAddress;
+  return address && WALLET_RE.test(address) ? address : null;
 }
-
-/** Seed for deterministic identicons — external wallet when available, else stable user id. */
 export function identiconSeedFromUser(user: AppUser): string {
-  const wallet = walletAddressFromUser(user);
-  return (wallet ?? user.id).toLowerCase();
+  return (walletAddressFromUser(user) ?? user.id).toLowerCase();
 }
