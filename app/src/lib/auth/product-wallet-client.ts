@@ -24,7 +24,7 @@ export async function executeProductAction(action: ProductAction): Promise<Hex> 
   throw new Error(
     result.status === "pending"
       ? `Operation pending review (${requestId}). Do not pay again. ${result.hashes.join(" ")}`
-      : "Operation failed before submission. Check APP wallet MON and LUSD balances.",
+      : "Operation failed before submission. Check APP wallet LUSD and platform gas allowance.",
   );
 }
 export function productConfirmation(a: ProductAction) {
@@ -57,5 +57,5 @@ export function productConfirmation(a: ProductAction) {
     default:
       details = a.kind;
   }
-  return `Confirm ${details} on Monad Testnet? Your server-controlled APP wallet signs. ${["faucet", "subscribe"].includes(a.kind) ? "The platform funds gas; no MON deposit is needed." : "Your APP wallet pays MON gas."}`;
+  return `Confirm ${details} on Monad Testnet? Your server-controlled APP wallet signs. The platform funds gas within its allowance; no MON deposit is needed.`;
 }

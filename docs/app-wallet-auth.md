@@ -2,7 +2,7 @@
 
 Development branch: `feat/independent-app-wallets`, based on main `ac0730d`. This change has not been deployed. The previous main-only documentation patch is preserved separately; this document describes the new implementation.
 
-Current testnet-only scope supersedes the historical mainnet payment/delegation design below: mainnet spending, delegation and RPC are disabled. See [testnet text acceptance](testnet-text-acceptance.md) and [Alchemy RPC acceptance](alchemy-rpc-acceptance.md) for current behavior and evidence.
+Current testnet-only scope supersedes the historical mainnet payment/delegation design below: mainnet spending, delegation and RPC are disabled. All supported app business calls now have bounded platform gas funding; see [APP-wallet-only audit](app-wallet-only-acceptance.md). See [testnet text acceptance](testnet-text-acceptance.md) and [Alchemy RPC acceptance](alchemy-rpc-acceptance.md) for current behavior and evidence.
 
 ## Identity and custody
 
@@ -28,13 +28,13 @@ Old v1 session cookies are intentionally rejected; sign in again. Old external-w
 
 ## Product transactions and recovery
 
-Product calls use ordinary signed EOA transactions on Monad Testnet (`10143`), paid with the APP wallet's testnet MON. The API accepts typed product actions, not destinations, arbitrary calldata, native transfers or arbitrary delegation. Server-side policy constructs exact approvals/payments, checks current prices and ownership, caps payment/price inputs at 1000 LUSD, and sends TBA withdrawals only to the authenticated APP wallet. Agent authorization, removal, withdrawal and pricing require a session authenticated within five minutes; sign in again when prompted.
+Product calls use ordinary signed EOA transactions on Monad Testnet (`10143`), signed by the APP wallet with platform-funded testnet MON gas. The API accepts typed product actions, not destinations, arbitrary calldata, native transfers or arbitrary delegation. Server-side policy constructs exact approvals/payments, checks current prices and ownership, caps payment/price inputs at 1000 LUSD, and sends TBA withdrawals only to the authenticated APP wallet. Agent authorization, removal, withdrawal and pricing require a session authenticated within five minutes; sign in again when prompted.
 
 Every operation has a persisted, account-scoped request ID and payload hash. A database lock serializes wallet nonces. The hash of each signed transaction is stored before broadcasting. A lost receipt never causes an automatic second payment. A repeated request can confirm already-recorded complete transaction sets by reading receipts. Partial approval/payment sequences, missing receipts or worker termination retain the lock and require operator review; the UI displays the operation ID and known hashes. Do not delete a lock or generate another payment until every recorded transaction and nonce is reconciled. This initial implementation deliberately does not replace, rebroadcast or auto-resume a partially completed sequence.
 
 Login challenges are single-use database records with five-minute expiry. Sessions are HttpOnly cookies, checked against revocable database records. Logout revokes the session; old bearer JWTs are not accepted. Same-origin checks apply to every authentication/product POST. A local PIN remains a screen lock, not server authorization.
 
-Mainnet (`143`) x402 API payments are USDC EIP-3009 authorizations, with the existing 0.10 USDC per-request policy. They are not ERC-4337 UserOperations and do not require EIP-7702 delegation. The explicit `wallet/prepare` operation retains mainnet-only delegation for the APP wallet; login does not call it. Existing P-256 MCP Agent Accounts still use their own ERC-4337/Pimlico/Paymaster path. Their owner grants now come from the APP wallet; previous-owner grants do not transfer automatically.
+Mainnet (`143`) x402 API payments are USDC EIP-3009 authorizations, with the existing 0.10 USDC per-request policy. They are not ERC-4337 UserOperations and do not require EIP-7702 delegation. The explicit `wallet/prepare` operation retains mainnet-only delegation for the APP wallet; login does not call it. Legacy P-256 MCP Agent Account chain writers are now disabled. Their role-based content reads/edits remain; on-chain price/sale operations use the authenticated APP-wallet app session.
 
 ## Configuration before testing a hosted environment
 

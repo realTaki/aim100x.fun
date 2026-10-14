@@ -5,7 +5,6 @@ const ALLOWED = new Set([
   "eth_chainId",
   "eth_supportedEntryPoints",
   "eth_estimateUserOperationGas",
-  "eth_sendUserOperation",
   "eth_getUserOperationByHash",
   "eth_getUserOperationReceipt",
   "pimlico_getUserOperationGasPrice",

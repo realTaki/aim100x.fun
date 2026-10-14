@@ -127,7 +127,7 @@ export async function readOnChainAgent(owner: Address): Promise<{
 }
 
 export function agentRoleLabel(role: AgentRole): string {
-  return role === 2 ? "Full access (content + pricing)" : "Content management only";
+  return role === 2 ? "Full role (MCP content only; chain writes disabled)" : "Content management only";
 }
 
 /** Markdown is derived on demand; the persistent record never needs a second secret copy. */

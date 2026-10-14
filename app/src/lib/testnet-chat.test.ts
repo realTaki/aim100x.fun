@@ -451,3 +451,9 @@ it("a failed durable receipt write prevents model execution", async () => {
   await assert.rejects(runTestnetText(id, body, f.store, f.deps), /database unavailable/);
   assert.equal(f.counts().models, 0);
 });
+
+it("NFT gas funding supports a bounded product budget and refuses an invalid budget", () => {
+  assert.equal(gasBudget(1n, 2_000_000n).gas, 2_000_000n);
+  for (const gas of [0n, 20_999n, 2_000_001n]) assert.throws(() => gasBudget(1n, gas), /gas limit/);
+  assert.throws(() => gasBudget(200_000_000_000n, 2_000_000n), /sponsorship limit/);
+});

@@ -64,7 +64,6 @@ export async function testnetTextChat(user: SessionUser, raw: unknown, systemPro
             );
           return [textPaymentCall(wallet, recipient, id, bodyHash)];
         },
-        true,
       ),
     async verify(hash, id) {
       const [transaction, receipt, chainId] = await Promise.all([
