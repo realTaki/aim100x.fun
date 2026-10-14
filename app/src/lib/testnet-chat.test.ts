@@ -1,5 +1,6 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   encodeAbiParameters,
   encodeEventTopics,
@@ -284,6 +285,12 @@ it("direct CN model request never visits mainnet, Hub, Monid or speech/image API
   await assert.rejects(
     minimaxText([], "fixture", async () => Response.json({ base_resp: { status_code: 1004 } })),
   );
+});
+it("testnet text chat stays on MiniMax CN and does not select x402 Kimi", () => {
+  const src = readFileSync(new URL("./testnet-chat.server.ts", import.meta.url), "utf8");
+  assert.match(src, /from "\.\/minimax-text\.server\.ts"/);
+  assert.match(src, /minimaxText\(/);
+  assert.doesNotMatch(src, /monadChatPayload|MONAD_KIMI|moonshot\/kimi-k3|BLOCKRUN_CHAT_URL|postPaidAi/);
 });
 it("gas policy caps sponsorship and derives a stable wallet-scoped funding ID", () => {
   assert.equal(gasBudget(1n).gas, 300_000n);

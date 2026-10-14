@@ -2,7 +2,15 @@ import { it } from "node:test";
 import assert from "node:assert/strict";
 import { privateKeyToAccount } from "viem/accounts";
 import { postMonidApi } from "./monid-api.server.ts";
-import { BLOCKRUN_CHAT_URL, MONAD_CHAT_MODEL, monadChatPayload, monidRequest } from "./monad-ai.ts";
+import {
+  BLOCKRUN_CHAT_URL,
+  MONAD_CHAT_MODEL,
+  MONAD_KIMI_CHAT_MODEL,
+  MONAD_MINIMAX_CHAT_MODEL,
+  X402_CHAT_MODELS,
+  monadChatPayload,
+  monidRequest,
+} from "./monad-ai.ts";
 import { MONID_RUN_URL } from "./x402-payment.server.ts";
 const owner = privateKeyToAccount(("0x" + "01".repeat(32)) as `0x${string}`);
 const signal = () => AbortSignal.timeout(5000);
@@ -42,7 +50,7 @@ it("routes the msgs Grok model through the Monad Hub BlockRun envelope with tool
   assert.equal((await result.json()).choices[0].message.content, "hello");
 });
 it("retains MiniMax M3 without silently substituting another model and confines media endpoints", () => {
-  const body = monadChatPayload({}, "minimax/minimax-m3");
+  const body = monadChatPayload({}, MONAD_MINIMAX_CHAT_MODEL);
   assert.deepEqual(body.thinking, { type: "disabled" });
   assert.throws(() => monadChatPayload({}, "openai/gpt-oss-120b"), /Unsupported/);
   assert.equal(
@@ -55,6 +63,51 @@ it("retains MiniMax M3 without silently substituting another model and confines 
   );
   assert.throws(() => monidRequest("https://api.minimax.cn/v1/voice_design", {}));
   assert.throws(() => monidRequest("https://evil.test/api.minimax.cn/v1/t2a_v2", {}));
+});
+it("routes Kimi K3 through the same BlockRun envelope without substituting Grok or MiniMax", async () => {
+  const tools = [{ type: "function", function: { name: "send_photo" } }];
+  const body = monadChatPayload(
+    {
+      model: "wrong",
+      messages: [{ role: "user", content: "hi" }],
+      tools,
+      tool_choice: "auto",
+      thinking: { type: "enabled" },
+      reasoning_effort: "high",
+    },
+    MONAD_KIMI_CHAT_MODEL,
+  );
+  assert.deepEqual([...X402_CHAT_MODELS], [
+    MONAD_CHAT_MODEL,
+    MONAD_MINIMAX_CHAT_MODEL,
+    MONAD_KIMI_CHAT_MODEL,
+  ]);
+  assert.equal(body.model, MONAD_KIMI_CHAT_MODEL);
+  assert.equal(body.model, "moonshot/kimi-k3");
+  assert.deepEqual(body.thinking, { type: "disabled" });
+  assert.equal("reasoning_effort" in body, false);
+  assert.equal(body.stream, false);
+  assert.equal(body.tools, tools);
+  const result = await postMonidApi(owner, BLOCKRUN_CHAT_URL, body, signal(), {
+    pay: async (payer, url, init) => {
+      assert.equal(payer.address, owner.address);
+      assert.equal(url, MONID_RUN_URL);
+      assert.deepEqual(JSON.parse(init.body as string), {
+        provider: "blockrun.ai",
+        endpoint: "/api/v1/chat/completions",
+        input: { body },
+      });
+      return Response.json({
+        status: "COMPLETED",
+        providerResponse: { httpStatus: 200 },
+        output: { choices: [{ message: { content: "hello" } }] },
+      });
+    },
+    retrieve: async () => {
+      throw new Error("Unexpected poll");
+    },
+  });
+  assert.equal((await result.json()).choices[0].message.content, "hello");
 });
 it("retrieves a pending run once with no additional payment and unwraps provider HTTP failures", async () => {
   let paid = 0,
