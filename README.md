@@ -52,6 +52,8 @@ npm run typecheck
 npm run build
 ```
 
+Contract CI runs all 43 local assertions without RPC; live forks use an explicit profile. See [contracts CI configuration and evidence](docs/contracts-ci-acceptance.md).
+
 Dev uses port 8080. The normal build wrapper loads local configuration; no-secret acceptance builds use the Vite API with `envDir:false` from `app`.
 
 | Configuration | Purpose |

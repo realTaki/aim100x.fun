@@ -16,6 +16,11 @@ if (args.length === 0) {
   process.exit(1);
 }
 
+if (process.env.FOUNDRY_PROFILE === "fork" && !process.env.ALCHEMY_MONAD_TESTNET_RPC_URL) {
+  console.error("fork profile requires ALCHEMY_MONAD_TESTNET_RPC_URL; local tests use the default profile");
+  process.exit(1);
+}
+
 const forge = spawnSync("forge", ["--version"], { encoding: "utf8" });
 if (forge.status !== 0) {
   console.error(
