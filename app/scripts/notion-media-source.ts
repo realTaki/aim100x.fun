@@ -140,9 +140,9 @@ function parseImagePage(page: NotionQueryPage): NotionLibraryImage | null {
 }
 
 export async function fetchMigrationSource() {
-  const pages = await queryDatabase(
-    process.env.NOTION_IMAGES_DATABASE_ID || "NOTION_DATABASE_ID_REMOVED",
-  );
+  const databaseId = process.env.NOTION_IMAGES_DATABASE_ID?.trim();
+  if (!databaseId) throw new Error("NOTION_IMAGES_DATABASE_ID is required for migration");
+  const pages = await queryDatabase(databaseId);
   const images = pages
     .map(parseImagePage)
     .filter((image): image is NotionLibraryImage => Boolean(image));
