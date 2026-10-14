@@ -12,7 +12,9 @@ Video: _coming soon_
 
 ## Alchemy
 
-Video: _coming soon_
+Video: [alchemy-bounty-demo.mp4](./alchemy-bounty-demo.mp4) (1:27, English narration)
+
+Narration script: [alchemy-bounty-demo-narration.md](./alchemy-bounty-demo-narration.md)
 
 ## Mera: One Passkey, Many Keys
 
