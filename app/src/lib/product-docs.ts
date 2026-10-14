@@ -12,7 +12,20 @@ The app UI uses English; Chinese terms below are legacy labels. Chat language fo
 
 ## Storage and wallet boundaries
 
-Login providers (External-wallet SIWE, Privy and Mera) authenticate independent accounts. The server derives and signs with each account's APP wallet; private keys never reach the browser. All supported business transactions use that APP wallet on Monad Testnet, with platform-funded gas within its allowance. Neon stores account, session and operation records as well as private content. Mainnet payments and delegation are disabled.
+Neon stores independent account, session and operation records alongside private idol content; media lives in R2. Mainnet payments and delegation are disabled.
+
+## Wallet design and derivation
+
+AIM100x currently uses self-managed, server-derived **APP wallets** for continuous backend payments. The project has not adopted a paid Privy wallet setup and is temporarily using this design; it is a project choice, not a limitation of Privy or Mera. External-wallet, Privy and Mera identities each map to an independent APP account, without automatic account merging.
+
+**Privy** embedded wallets can support automatic backend payments through authorized additional server signers and policies, including its Node x402 client. Privy also offers free core usage. In this app, embedded-wallet creation is currently off: Privy verifies identity, and the APP wallet signs business transactions.
+
+**Mera** provides a passkey-derived secp256k1 EOA identity and can sign repeatedly within an active signing session. This app ends that client session after the login proof and clears the key buffers; it has not integrated backend delegated signing for the Mera identity. The APP wallet therefore handles ongoing payments. Its account ID binds the Mera namespace, stable RP and verified signer address; the server combines that ID with its master secret to derive the APP private key. This links the two identities, but the APP key is **not derived from the Mera private key or PRF**.
+
+The server signs only allowed requests from an authenticated session, checking ownership, prices and replay state. APP private keys stay on the server. All supported business operations, including NFT transactions, use the APP wallet, with platform-funded gas within its allowance.
+
+[Implementation details and official references](https://github.com/realTaki/aim100x.fun/blob/main/docs/wallet-design.md).
+
 
 ## What it is
 
@@ -28,7 +41,7 @@ A **one-time LUSD subscription** unlocks chat. Text costs **1 testnet LUSD per m
 
 | Label | In this product |
 | --- | --- |
-| **External-wallet SIWE / Privy / Mera** | Login identity only. Each provider identity has its own independent APP account. |
+| **External-wallet SIWE / Privy / Mera** | Verified identities bind independent APP accounts; current wallet choices are explained above. |
 | **APP wallet** | Stable server-derived EOA signs all supported business transactions on testnet; the platform funds gas. Mainnet payment and delegation are disabled. |
 | **ERC-721** idol NFT | Collection **Idols100x**. One token = one idol. The **broker** (经纪人) **is the NFT owner**. Transfer/buy changes control of the idol and its TBA. Assets stay at the TBA address; private content access follows ownership. Browser chat history is not transferred. |
 | **ERC-6551** token-bound account (TBA) | Subscription and image LUSD receipts stay in the idol TBA; its current owner withdraws them to their APP wallet. |
