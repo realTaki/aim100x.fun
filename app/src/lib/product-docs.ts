@@ -12,7 +12,7 @@ The app UI uses English; Chinese terms below are legacy labels. Chat language fo
 
 ## Storage and wallet boundaries
 
-Only idol configuration and media metadata live in Neon; images live in private R2. There are no account tables. External-wallet SIWE identifies the user. NFTs, subscriptions, tips and photo unlocks use the external wallet on Monad testnet and the user pays gas. The separate server-derived API wallet holds Monad mainnet USDC for automatic x402 API payments. Private author content is returned only to the current owner or an authorized MCP agent.
+Login providers (External-wallet SIWE, Privy and Mera) authenticate independent accounts. The server derives and signs with each account's APP wallet; private keys never reach the browser. All supported business transactions use that APP wallet on Monad Testnet, with platform-funded gas within its allowance. Neon stores account, session and operation records as well as private content. Mainnet payments and delegation are disabled.
 
 ## What it is
 
@@ -22,18 +22,18 @@ Each **AI idol** has a public profile, a creator-defined persona, and private co
 - **Brokers** (经纪人) own the idol **ERC-721 NFT**, edit persona and scenes, take subscribe/unlock revenue, and may sell the NFT.
 - Other agents manage a broker's idols through MCP at https://aim100x.fun/mcp (signed \`lf1.\` bearer). The server verifies the signed proof and keeps any supplied signing key in request memory.
 
-A **one-time LUSD subscription** unlocks chat; paid images are charged separately on **Monad Testnet**. AI requests additionally use **mainnet USDC through x402**. One turn can make multiple requests: the **0.10 USDC cap is per API request**, not per message, turn, or day. Ambiguous paid requests are not automatically retried.
+A **one-time LUSD subscription** unlocks chat. Text costs **1 testnet LUSD per message**, paid by the APP wallet before direct MiniMax China text generation. Image unlocks retain their separate LUSD quote. Ambiguous operations preserve their request ID and are not automatically paid again.
 
 ## Accounts, ownership, and payments
 
 | Label | In this product |
 | --- | --- |
-| **External-wallet SIWE** | The connected Web3 wallet signs login and owns NFTs. Product payments are ordinary transactions signed by that wallet. |
-| **EOA + EIP-7702 API wallet** | A separate derived wallet holds mainnet USDC and automatically pays API requests. The platform sponsors its initialization; users pay MON gas for external-wallet product transactions. |
+| **External-wallet SIWE / Privy / Mera** | Login identity only. Each provider identity has its own independent APP account. |
+| **APP wallet** | Stable server-derived EOA signs all supported business transactions on testnet; the platform funds gas. Mainnet payment and delegation are disabled. |
 | **ERC-721** idol NFT | Collection **Idols100x**. One token = one idol. The **broker** (经纪人) **is the NFT owner**. Transfer/buy changes control of the idol and its TBA. Assets stay at the TBA address; private content access follows ownership. Browser chat history is not transferred. |
-| **ERC-6551** token-bound account (TBA) | Canonical Tokenbound TBA bound to that ERC-721. Subscribe LUSD and per-image unlock LUSD go to the **idol TBA**. The broker later withdraws TBA LUSD to their external wallet. |
-| **LonelyUSD (LUSD)** | Testnet ERC-20, 6 decimals. The product payment asset. Faucet, subscribe, unlock, mint, and NFT sale all use LUSD. API payments separately use mainnet USDC. |
-| **Agent Account** | A separate ERC-4337 PasskeyAccount from a **software P-256 key**, independent of the external login wallet. Authorized once via \`setAgent\`. MCP signs as this account. |
+| **ERC-6551** token-bound account (TBA) | Subscription and image LUSD receipts stay in the idol TBA; its current owner withdraws them to their APP wallet. |
+| **LonelyUSD (LUSD)** | Testnet ERC-20, 6 decimals. APP-wallet product payments and per-message simulated billing use LUSD. |
+| **Agent Account** | Legacy ERC-4337 identity for MCP content authorization. Its transaction signer is disabled; chain writes require an authenticated APP wallet. |
 
 \`buy()\` pays the **current ERC-721 owner**, not the TBA (otherwise the buyer would reclaim the sale). **Lifetime receipts** (累计收账) still count that sale. Plaza **public** (公开) is visibility, not the sale listing.
 
@@ -41,11 +41,11 @@ A **one-time LUSD subscription** unlocks chat; paid images are charged separatel
 
 App tabs: **Plaza** (广场) \`/\` · **Subscribed** (已订阅) \`/subscribed\` · **Creator Center** (创作者中心) \`/me/manager\` · **Profile** (个人主页) \`/me\`.
 
-1. Open https://aim100x.fun → **Login** (\`/login\`) with an external Web3 wallet and sign the SIWE message. Set a local six-digit privacy PIN; this PIN locks the screen and does not authenticate the wallet.
-2. **Profile**: set **Prefer language**, username, bio, avatar. Claim **+100 LUSD** from the faucet (24h cooldown) for testnet product payments. Deposit mainnet USDC into the separate API wallet for chat, image generation and speech.
+1. Open https://aim100x.fun → **Login** with an external wallet, Privy or Mera when configured. Each identity has a separate APP account. The device PIN is a screen lock, not account authentication.
+2. **Profile**: set **Prefer language**, username, bio and avatar. Claim **+100 LUSD** into your APP wallet for testnet product operations. Platform gas is bounded by its daily allowance; no MON deposit is required.
 3. **Plaza**: public idols (\`isPublic\`). Search, sort by subscribers or lifetime receipts (累计收账). Open a card → profile \`/idol/{tokenId}\`.
 4. **Subscribe** (订阅; one-time payment, default **1 LUSD**, broker can change). Pays the idol TBA; you become a fan. DM stays locked until subscribed.
-5. **DM** \`/chat/{tokenId}\`: text or hold-to-talk voice (STT). The idol replies in short 1:1 lines; it may attach a photo or a voice-note bubble (TTS). Thread lives in this browser (OPFS) per external-wallet account. History \`/chat/{tokenId}/history\`: search, photos tab, restart (reseeds **欢迎词** (welcome) + opening; keeps seen photos).
+5. **DM** \`/chat/{tokenId}\`: text or hold-to-talk voice (STT). The idol replies in short 1:1 lines; it may attach a photo or a voice-note bubble (TTS). Thread lives in this browser (OPFS) per APP account. History \`/chat/{tokenId}/history\`: search, photos tab, restart (reseeds **欢迎词** (welcome) + opening; keeps seen photos).
 6. **NSFW paywall**: images tagged NSFW. On plaza/profile, subscribers see them; others pay **per-image** (单图) LUSD (default 1) per image. In chat, **each NSFW photo is paid separately** even if you already subscribed. SFW is free. Unlock is local to this account + idol.
 7. If the idol is listed, **buy the NFT** (LUSD to the current owner). You become the broker.
 
@@ -55,7 +55,7 @@ Chat replies in the **language of the fan's latest message**. Prefer language do
 
 **Creator Center** \`/me/manager\` is the broker hub (in-app copy also says **Broker Center** / 经纪人中心). Sign in first.
 
-**Mint.** The hub can show **mint new idol** at **20 LUSD**. Max **4** mints per external wallet, collection supply **100**. You receive the ERC-721; a TBA is created for it. New mints start private until you make them **public** (公开).
+**Mint.** The hub can show **mint new idol** at **20 LUSD**. Max **4** mints per APP wallet, collection supply **100**. Your APP wallet receives the ERC-721; a TBA is created for it. New mints start private until you make them **public** (公开).
 
 **Owned cards** open the editor \`/me/manager/{tokenId}\`:
 
@@ -78,7 +78,7 @@ Advanced (creative configuration saves to private Neon; prices and NFT operation
 
 **+ agent** (header) → \`/me/manager/agent\`. Create an Agent Account for MCP. See below.
 
-MCP cannot mint, buy, transfer, upload photos, chat, faucet, or call \`setAgent\`. Those stay in the external-wallet session.
+MCP chain writes are disabled. Mint, buy, sale/pricing, faucet and Agent authorization use the authenticated APP-wallet session. Direct NFT transfers have no current product entry point.
 
 ## Prefer language, scenes, and 欢迎词 (welcome)
 
@@ -143,12 +143,12 @@ Authorization follows the **NFT owner**, not a single token: every idol that own
 | \`get_idol\` | any | Authorized private configuration plus on-chain prices, owner and role |
 | \`update_idol_content\` | Content or Full | Patch \`name\`, \`bio\`, \`personality\`, \`look\`, \`voice\`, \`website\`, \`twitter\`, \`welcome\` (**欢迎词**), \`scenes\` (JSON array string). Unspecified fields stay. |
 | \`set_idol_public\` | Content or Full | Plaza \`isPublic\` |
-| \`update_idol_pricing\` | Full | \`subscribePriceUsdc\`, \`imageUnlockPriceUsdc\` as human LUSD strings (e.g. \`"1"\`, \`"1.5"\`); must stay > 0 |
-| \`set_idol_sale_price\` | Full | Human LUSD string; \`"0"\` = not for sale (不出售) |
+| \`update_idol_pricing\` | unavailable | Change prices through the authenticated APP-wallet Creator Center. |
+| \`set_idol_sale_price\` | unavailable | Change sale prices through the authenticated APP-wallet Creator Center. |
 
-Content and visibility writes save private Neon configuration after on-chain role checks. Pricing and sale writes use the separate ERC-4337 Agent Account.
+Content and visibility writes save private Neon configuration after role checks. MCP pricing and sale tools are currently unavailable: no APP-account authorization has been implemented for those tools.
 
-**Cannot via MCP:** mint / buy / transfer NFTs; \`setAgent\` / \`removeAgent\`; photo album, covers, generated images; chat; faucet; withdrawing TBA LUSD (broker external wallet in-app).
+**Cannot via MCP:** chain transactions, mint/buy/transfer, faucet or TBA withdrawal. Supported app business operations use the APP wallet; the login wallet never signs them.
 
 ## Paths
 
@@ -159,7 +159,7 @@ Content and visibility writes save private Neon configuration after on-chain rol
 | \`/chat/{tokenId}\` | Fan DM (私信; must be subscribed) |
 | \`/chat/{tokenId}/history\` | Thread history / photos / restart |
 | \`/subscribed\` | Fan's subscribed idols (已订阅) |
-| \`/login\` | External-wallet SIWE |
+| \`/login\` | External-wallet SIWE / Privy / Mera authentication |
 | \`/me\` | Prefer language, profile, LUSD faucet |
 | \`/me/manager\` | Broker hub (经纪人), mint |
 | \`/me/manager/{tokenId}\` | Idol editor |
@@ -170,17 +170,17 @@ Content and visibility writes save private Neon configuration after on-chain rol
 
 ## AI services and current limits
 
-Chat defaults to Grok 4.3 through Monid → BlockRun, with MiniMax-M3 selectable. Text-only images use Grok Imagine 2.0; jobs with private references use MiniMax image-01. Speech uses MiniMax through Monid, and transcription uses Orthogonal/ElevenLabs. Voice design is unavailable through the current routes; use an existing voice ID or disable voice notes.
+Text uses direct MiniMax China MiniMax-M3 after a verified 1 LUSD APP-wallet payment. Existing image/voice/STT integrations are retained, but routes requiring mainnet payment are blocked; a text test does not establish those routes' readiness.
 
-An optional temporary MiniMax bridge handles unpaid chat/image failures, including insufficient USDC, using the platform API key. Submitted, settled, or uncertain payments do not trigger fallback. Login and content permissions still apply. This bridge does not change voice/STT.
+Optional platform-paid image fallback depends on configuration and never retries an uncertain payment. Mainnet USDC is not required for testnet text chat.
 
 ## Implementation status
 
-This guide describes the current main branch. Implemented code and verified production behavior are distinct:
+This guide describes current code; offline tests and deployed anonymous-page checks are distinct from authenticated live acceptance.
 
-- **Implemented:** external-wallet SIWE login, a separate server-controlled EOA + EIP-7702 API wallet, mainnet USDC x402 requests, testnet LUSD subscriptions and NFT payments, private Neon/R2 content, and P-256 MCP authorization.
-- **Recorded verification:** the storage migration report documents 4 idol configurations, 22 images with originals and thumbnails, and production media-access checks. Funded AI requests, wallet delegation, and upstream prompt-cache savings are outside that verification.
-- **Under consideration, not implemented in main:** the proposed Mera single-passkey/derived-account flow, per-idol scoped keys, Privy login, Alchemy integration, and KIMI inference. Privy exists on a separate branch; the KIMI write-up is a placeholder. These are research or development candidates, not released capabilities or delivery commitments.
+- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; platform-funded gas within limits; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
+- **Recorded verification:** offline login/operation/replay/ownership tests and production anonymous UI/icon smoke. Provider configuration, real passkey ceremonies, database initialization and funded business transactions need live acceptance.
+- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and EIP-7702 delegation remain disabled.
 
 Subscriptions remain part of the product. Removing them in favor of message-only billing would be a product change, not a description of current behavior.
 `;

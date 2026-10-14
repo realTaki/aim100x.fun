@@ -10,7 +10,7 @@ describe("agent-facing /docs", () => {
     assert.match(PRODUCT_DOCS, /lf1\./);
     assert.match(PRODUCT_DOCS, /ERC-4337/);
     assert.match(PRODUCT_DOCS, /External-wallet SIWE/);
-    assert.match(PRODUCT_DOCS, /EOA \+ EIP-7702 API wallet/);
+    assert.match(PRODUCT_DOCS, /APP wallet/);
     assert.match(PRODUCT_DOCS, /ERC-721/);
     assert.match(PRODUCT_DOCS, /ERC-6551/);
     assert.match(PRODUCT_DOCS, /token-bound account/);
@@ -34,8 +34,10 @@ describe("agent-facing /docs", () => {
     assert.equal(status(PRODUCT_DOCS), status(readme));
     for (const text of [PRODUCT_DOCS, readme]) {
       assert.match(text, /one-time LUSD subscription/);
-      assert.match(text, /per API request/);
-      assert.match(text, /Under consideration, not implemented in main/);
+      assert.match(text, /1 testnet LUSD per message/);
+      assert.match(text, /\*\*Not implemented:/);
+      assert.match(text, /platform-funded gas|platform funds gas/);
+      assert.doesNotMatch(text, /user pays gas|external wallet owns|no account tables/i);
     }
     assert.doesNotMatch(PRODUCT_DOCS, /\| `\/login` \| Passkey/);
   });

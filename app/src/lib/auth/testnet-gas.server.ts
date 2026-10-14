@@ -28,14 +28,16 @@ async function reserveGas(wallet: Address, requestId: string, amount: bigint) {
   await sql`INSERT INTO aim_gas_reservations(request_id,wallet,amount) VALUES (${requestId},${address},${amount.toString()}::numeric)`;
 }
 export const SPONSORED_GAS = 300_000n;
+export const MAX_PRODUCT_GAS = 2_000_000n;
 export const MAX_SPONSORED_FEE = 200_000_000_000n;
 export function sponsorAccount() {
   return privateKeyToAccount(readPaymasterSigner());
 }
-export function gasBudget(baseFee: bigint) {
+export function gasBudget(baseFee: bigint, gas = SPONSORED_GAS) {
+  if (gas < 21_000n || gas > MAX_PRODUCT_GAS) throw new Error("Invalid sponsored gas limit");
   const maxFeePerGas = baseFee * 2n + 1_000_000_000n;
   if (maxFeePerGas > MAX_SPONSORED_FEE) throw new Error("Testnet gas exceeds sponsorship limit");
-  return { gas: SPONSORED_GAS, maxFeePerGas, maxPriorityFeePerGas: 0n };
+  return { gas, maxFeePerGas, maxPriorityFeePerGas: 0n };
 }
 export function sponsorshipId(wallet: Address, requestId: string, index: number) {
   const h = createHash("sha256")
@@ -59,15 +61,16 @@ export async function fundTestnetGas(
   parentId: string,
   index: number,
   ports: GasPorts,
+  gas = SPONSORED_GAS,
 ) {
   if ((await ports.chainId()) !== 10143) throw new Error("Wrong sponsorship chain");
-  const budget = gasBudget(await ports.baseFee()),
+  const budget = gasBudget(await ports.baseFee(), gas),
     needed = budget.gas * budget.maxFeePerGas;
   if (ports.sponsor.toLowerCase() === wallet.toLowerCase())
     throw new Error("Invalid gas recipient");
   const requestId = sponsorshipId(wallet, parentId, index);
   const bodyHash = createHash("sha256")
-    .update(`10143:${wallet.toLowerCase()}:gas-v1`)
+    .update(`10143:${wallet.toLowerCase()}:gas-v1${gas === SPONSORED_GAS ? "" : `:${gas}`}`)
     .digest("hex");
   // Full funding even if the user already has MON. Do not substitute the user's funds.
   const result = await runProductOperation(
@@ -90,7 +93,12 @@ export async function fundTestnetGas(
   return budget;
 }
 /** Native gas top-up only; the APP wallet still signs the allowlisted LUSD call. */
-export async function sponsorTestnetGas(wallet: Address, parentId: string, index: number) {
+export async function sponsorTestnetGas(
+  wallet: Address,
+  parentId: string,
+  index: number,
+  gas = SPONSORED_GAS,
+) {
   const reader = createPublicClient({
     chain: testnetWalletChain,
     transport: monadTransport(10143),
@@ -102,44 +110,50 @@ export async function sponsorTestnetGas(wallet: Address, parentId: string, index
     transport: monadTransport(10143),
   });
   let signed: Hex | undefined;
-  return fundTestnetGas(wallet, parentId, index, {
-    chainId: () => reader.getChainId(),
-    baseFee: async () => (await reader.getBlock()).baseFeePerGas ?? 0n,
-    balance: (address) => reader.getBalance({ address }),
-    sponsor: sponsor.address,
-    store: (id, body) =>
-      operationStore(`sponsor:10143:${sponsor.address.toLowerCase()}`, id, body, (hash) =>
-        reader
-          .getTransactionReceipt({ hash })
-          .then((r) => r.status)
-          .catch(() => null),
-      ),
-    reserve: reserveGas,
-    async sign(to, value, budget) {
-      const request = await writer.prepareTransactionRequest({
-        account: sponsor,
-        to,
-        value,
-        chain: testnetWalletChain,
-        type: "eip1559",
-        gas: 21_000n,
-        maxFeePerGas: budget.maxFeePerGas,
-        maxPriorityFeePerGas: 0n,
-      });
-      if (request.chainId !== 10143 || value > SPONSORED_GAS * MAX_SPONSORED_FEE)
-        throw new Error("Invalid sponsorship");
-      signed = await sponsor.signTransaction(request);
-      return keccak256(signed);
+  return fundTestnetGas(
+    wallet,
+    parentId,
+    index,
+    {
+      chainId: () => reader.getChainId(),
+      baseFee: async () => (await reader.getBlock()).baseFeePerGas ?? 0n,
+      balance: (address) => reader.getBalance({ address }),
+      sponsor: sponsor.address,
+      store: (id, body) =>
+        operationStore(`sponsor:10143:${sponsor.address.toLowerCase()}`, id, body, (hash) =>
+          reader
+            .getTransactionReceipt({ hash })
+            .then((r) => r.status)
+            .catch(() => null),
+        ),
+      reserve: reserveGas,
+      async sign(to, value, budget) {
+        const request = await writer.prepareTransactionRequest({
+          account: sponsor,
+          to,
+          value,
+          chain: testnetWalletChain,
+          type: "eip1559",
+          gas: 21_000n,
+          maxFeePerGas: budget.maxFeePerGas,
+          maxPriorityFeePerGas: 0n,
+        });
+        if (request.chainId !== 10143 || value > budget.gas * MAX_SPONSORED_FEE)
+          throw new Error("Invalid sponsorship");
+        signed = await sponsor.signTransaction(request);
+        return keccak256(signed);
+      },
+      async send(hash) {
+        const sent = await writer.sendRawTransaction({ serializedTransaction: signed! });
+        signed = undefined;
+        if (sent !== hash) throw new Error("Unexpected gas transaction");
+      },
+      async confirmed(hash) {
+        return (
+          (await reader.waitForTransactionReceipt({ hash, timeout: 12_000 })).status === "success"
+        );
+      },
     },
-    async send(hash) {
-      const sent = await writer.sendRawTransaction({ serializedTransaction: signed! });
-      signed = undefined;
-      if (sent !== hash) throw new Error("Unexpected gas transaction");
-    },
-    async confirmed(hash) {
-      return (
-        (await reader.waitForTransactionReceipt({ hash, timeout: 12_000 })).status === "success"
-      );
-    },
-  });
+    gas,
+  );
 }
