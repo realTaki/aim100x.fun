@@ -2,6 +2,8 @@
 
 Discover AI idols, chat through text and voice, or create a character with its own personality and scenes. aim100x.fun combines AI roleplay with NFT ownership on Monad: fans subscribe to idols, and creators shape their content, set prices, and receive payments.
 
+> Development branch update: the testnet text-flow implementation uses 1 LUSD per message, platform-funded testnet gas and direct MiniMax China text API. Mainnet spending remains disabled. See [scope, configuration and verification](docs/testnet-text-acceptance.md); older main-branch descriptions below are historical.
+
 - **Fans:** discover public idols, subscribe, and open private conversations with text, voice notes, and photos.
 - **Creators:** own an idol NFT, edit its persona and scenes, manage media and prices, and offer the NFT for sale.
 - **Agents:** manage authorized idols through the [MCP endpoint](https://aim100x.fun/mcp).

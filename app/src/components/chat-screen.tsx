@@ -589,6 +589,30 @@ export function ChatScreen({ creator }: { creator: Idol }) {
       </div>
 
       <div className="shrink-0 bg-gradient-to-t from-bg via-bg to-transparent px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <p className="mb-1 text-center text-xs text-muted">
+          Text: 1 testnet LUSD per message · gas sponsored
+        </p>
+        {messages.some((m) => m.error) && (
+          <button
+            type="button"
+            disabled={busy}
+            className="mb-2 w-full text-sm text-accent"
+            onClick={() => {
+              try {
+                if (!user) return;
+                const saved = localStorage.getItem(
+                  `aim:text:${user.accountId ?? user.id}:${tokenId}`,
+                );
+                if (saved) void send(JSON.parse(saved).content);
+                else setStatus("No pending text payment. You can send a new message.");
+              } catch {
+                setStatus("Pending message unavailable. Keep its message ID for support.");
+              }
+            }}
+          >
+            Retry pending text — reuse its payment
+          </button>
+        )}
         <div className="flex items-center gap-2">
           <button
             type="button"

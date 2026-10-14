@@ -1,21 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { nextScene, sceneId as idolSceneId, sceneIndex } from "@/lib/idols";
 import { loadIdolByTokenId } from "@/lib/idol-catalog.server";
 import type { ChatMsg } from "@/lib/thread";
 import { seenImageIds } from "@/lib/thread";
 import { uid } from "@/lib/utils";
 import { normalizeMediaId } from "@/lib/media-app-id";
 import { sceneIdOf, sceneQueryForIdol } from "@/lib/library";
-import {
-  SCENE_STAY_LIMIT,
-  ensureSeedLibrary,
-  listUnusedImages,
-  matchImageByHint,
-  mergeUsedImageId,
-} from "@/lib/library";
-import { chatCompletionTimeoutMs, chatTurnBudgetMs } from "@/lib/chat-timeout";
+import { listUnusedImages, matchImageByHint, mergeUsedImageId } from "@/lib/library";
 
 async function isFanOf(userId: string, tokenId: number, bearerToken?: string) {
   const { isFanMembershipActive } = await import("@/lib/subscribe/fan-membership.server");
@@ -49,26 +41,6 @@ function raceTimeout<T>(ms: number, work: Promise<T>, fallback: T): Promise<T> {
 
 /** Leave enough time to serialize a JSON response before Hobby's 60s maxDuration. */
 const FAN_CHECK_BUDGET_MS = 1500;
-
-function requestChatHost(): string {
-  try {
-    const request = getRequest();
-    const origin = request?.headers.get("origin") ?? request?.headers.get("referer") ?? "";
-    if (origin) {
-      try {
-        const host = new URL(origin).hostname;
-        if (host) return host;
-      } catch {
-        /* fall through */
-      }
-    }
-    const forwarded = request?.headers.get("x-forwarded-host") ?? "";
-    const host = forwarded.split(",")[0]?.trim() || request?.headers.get("host") || "";
-    return host.split(":")[0] ?? host;
-  } catch {
-    return "";
-  }
-}
 
 /** On-chain fan membership for UI + chat gate (no database). */
 export const getFan = createServerFn({ method: "POST" })
@@ -119,6 +91,7 @@ type ThreadSnapshot = {
 export const sendChat = createServerFn({ method: "POST" })
   .validator(
     (input: {
+      requestId: string;
       tokenId: number;
       content: string;
       thread: ThreadSnapshot;
@@ -128,155 +101,81 @@ export const sendChat = createServerFn({ method: "POST" })
     }) => input,
   )
   .middleware([authMiddleware])
-  .handler(
-    async ({
-      context,
-      data,
-    }): Promise<
-      | {
-          ok: true;
-          userMessage: ChatMsg;
-          reply: string;
-          assistantMessage: ChatMsg;
-          choices: string[];
-          wantImage: boolean;
-          imageId?: string;
-          wantVoice?: boolean;
-          voiceText?: string;
-          fallback?: boolean;
-          chapter: number;
-          sceneId: string;
-          sceneImages: number;
-        }
-      | { ok: false; error: string }
-    > => {
-      const content = data.content.trim().slice(0, 500);
-      if (!content) return { ok: false, error: "Empty message" };
-      const idol = await loadIdolByTokenId(data.tokenId);
-      if (!idol) return { ok: false, error: "Unknown idol" };
-
-      const thread = data.thread;
-      let sceneKey = thread.sceneId || sceneIdOf(idol, thread.chapter);
-
-      const isFan = await raceTimeout(
-        FAN_CHECK_BUDGET_MS,
-        isChatFan(data.fanWallet, context.userId, data.tokenId, undefined),
-        false,
-      );
-      if (!isFan) {
-        return { ok: false, error: "not_fan" };
-      }
-
-      let sceneImages = thread.sceneImages ?? 0;
-      if (sceneImages >= SCENE_STAY_LIMIT) {
-        sceneKey = idolSceneId(nextScene(idol, sceneKey));
-        sceneImages = 0;
-      }
-      const chapterActive = sceneIndex(idol, sceneKey);
-
-      void ensureSeedLibrary().catch(() => undefined);
-
-      const userMessage: ChatMsg = {
-        id: uid(),
-        role: "user",
-        content,
-        chapter: chapterActive,
-      };
-
-      const history = [...thread.messages, userMessage]
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .filter((m) => !m.error)
-        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-
-      const seen = seenImageIds(thread);
-      const host = requestChatHost();
-      const unusedWait = 1200;
-      const unused = await raceTimeout(
-        unusedWait,
-        listUnusedImages({
+  .handler(async ({ context, data }) => {
+    const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server.ts");
+    const user = await sessionUserFromRequest(getRequest());
+    if (!user) return { ok: false as const, error: "Sign in required" };
+    // Subscription/content authorization remains unchanged; this pass replaces only text billing.
+    if (!(await isChatFan(undefined, context.userId, data.tokenId)))
+      return { ok: false as const, error: "not_fan" };
+    const idol = await loadIdolByTokenId(data.tokenId);
+    if (!idol) return { ok: false as const, error: "Unknown idol" };
+    const { testnetTextChat } = await import("./testnet-chat.server.ts");
+    try {
+      const result = await testnetTextChat(
+        user,
+        {
+          requestId: data.requestId,
           tokenId: data.tokenId,
-          sceneId: sceneKey,
-          sceneQuery: sceneQueryForIdol(idol, sceneKey),
-          usedImageIds: seen,
-        }),
-        [],
+          content: data.content,
+          history: data.thread.messages
+            .filter((m) => !m.error && (m.role === "user" || m.role === "assistant"))
+            .slice(-36)
+            .map((m) => ({ role: m.role, content: m.content })),
+        },
+        [
+          "You are an AI roleplay character. Reply with text only, in the user's language.",
+          `Name: ${idol.name}`,
+          `Personality: ${idol.personality}`,
+          `Bio: ${idol.bio}`,
+          "Do not call tools, generate images or voice. Keep replies concise.",
+        ].join("\n"),
       );
-
-      const { completeTurn } = await import("@/lib/ai.server");
-      const turnBudget = Math.max(400, chatTurnBudgetMs(host) - 500);
-      let result: Awaited<ReturnType<typeof completeTurn>>;
-      try {
-        result = await raceTimeout(
-          turnBudget,
-          completeTurn({
-            tokenId: data.tokenId,
-            chapter: chapterActive,
-            messages: history,
-            speak: false,
-            lastChoices: thread.choicesByChapter[thread.chapter],
-            sceneId: sceneKey,
-            fanSentVoice: Boolean(data.fanSentVoice),
-            completionTimeoutMs: chatCompletionTimeoutMs(host),
-            fan: data.fan,
-            imageCandidates: unused.slice(0, 24).map((r) => ({
-              id: r.id,
-              scene: r.scene_id,
-              tags: r.tags,
-              prompt: r.prompt.slice(0, 80),
-            })),
-          }),
-          { ok: false, error: "ai_timeout" },
-        );
-      } catch {
-        return { ok: false, error: "ai_request_failed" };
-      }
-      if (!result.ok) return result;
-
-      const { sanitizeIdolReply, userWantsPhoto } = await import("@/lib/chat-reply");
+      if (!result.ok)
+        return { ok: false as const, error: `${result.error} Message ID: ${result.requestId}` };
+      const chapter = Math.max(
+        0,
+        Math.min(idol.scenes.length - 1, Number(data.thread.chapter) || 0),
+      );
+      const userMessage: ChatMsg = {
+        id: `${result.requestId}:user`,
+        role: "user",
+        content: data.content.trim(),
+        chapter,
+      };
       const assistantMessage: ChatMsg = {
-        id: uid(),
+        id: `${result.requestId}:assistant`,
         role: "assistant",
-        content: sanitizeIdolReply(result.reply),
-        chapter: chapterActive,
+        content: result.reply,
+        chapter,
       };
-
-      const wantImage = Boolean(result.sendPhoto) || userWantsPhoto(content);
-      const wantVoice = Boolean(result.sendVoice);
-      const voiceText = result.voiceText?.trim() || undefined;
-      const restock = Boolean(result.expandLibrary && result.photoPrompt) && unused.length < 6;
-
-      if (restock) {
-        const { waitUntil } = await import("@vercel/functions");
-        const { expandSceneLibrary } = await import("@/lib/image-gen");
-        waitUntil(
-          expandSceneLibrary({
-            tokenId: data.tokenId,
-            sceneId: sceneKey,
-            messages: history.slice(-36),
-            triggerUserId: context.userId,
-            contentRating: "NSFW",
-            variation: 0,
-            prompt: result.photoPrompt,
-            tags: result.photoTags,
-          }).catch(() => undefined),
-        );
-      }
       return {
-        ok: true,
+        ok: true as const,
         userMessage,
-        reply: assistantMessage.content,
+        reply: result.reply,
         assistantMessage,
-        choices: result.choices,
-        wantImage,
-        imageId: result.imageId,
-        wantVoice,
-        voiceText,
-        chapter: chapterActive,
-        sceneId: sceneKey,
-        sceneImages,
+        choices: [] as string[],
+        wantImage: false,
+        wantVoice: false,
+        voiceText: undefined as string | undefined,
+        imageId: undefined as string | undefined,
+        fallback: false,
+        chapter,
+        sceneId: sceneIdOf(idol, chapter),
+        sceneImages: data.thread.sceneImages ?? 0,
       };
-    },
-  );
+    } catch (error) {
+      // Never return upstream/RPC error bodies, which may contain configuration or prompts.
+      const message =
+        error instanceof Error &&
+        /^(Not enough testnet LUSD|Configure MINIMAX_CN_API_KEY|Message ID belongs)/.test(
+          error.message,
+        )
+          ? error.message
+          : "Text request unresolved. Retry the same message; no new payment is authorized.";
+      return { ok: false as const, error: message };
+    }
+  });
 
 export const attachChatImage = createServerFn({ method: "POST" })
   .validator(
@@ -379,13 +278,16 @@ export const attachChatImage = createServerFn({ method: "POST" })
         const reader = imagePaymentReader();
         const amount = usdcToAtomicString(idolImageUnlockPriceUsdc(idol));
         imageMessage.imagePaymentAmount = amount;
-        imageMessage.imagePaymentIntent = await issueImagePayment(user.walletAddress.toLowerCase(), {
-          imageId: hit.id,
-          tokenId: data.tokenId,
-          amount,
-          wallet: user.walletAddress,
-          fromBlock: String(await reader.getBlockNumber()),
-        });
+        imageMessage.imagePaymentIntent = await issueImagePayment(
+          user.walletAddress.toLowerCase(),
+          {
+            imageId: hit.id,
+            tokenId: data.tokenId,
+            amount,
+            wallet: user.walletAddress,
+            fromBlock: String(await reader.getBlockNumber()),
+          },
+        );
       }
       return {
         ok: true,
@@ -415,7 +317,12 @@ export const prepareChatImage = createServerFn({ method: "POST" })
     if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId)
       throw new Error("Sign in to your APP account");
     const { prepareImagePayment } = await import("./chat-image-payment.server");
-    return prepareImagePayment(user.walletAddress.toLowerCase(), user.walletAddress, data.imageId, data.paymentIntent);
+    return prepareImagePayment(
+      user.walletAddress.toLowerCase(),
+      user.walletAddress,
+      data.imageId,
+      data.paymentIntent,
+    );
   });
 export const unlockChatImage = createServerFn({ method: "POST" })
   .validator(
@@ -468,7 +375,8 @@ export const quoteImageUnlock = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
     const user = await sessionUserFromRequest(getRequest());
-    if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId) throw new Error("Sign in first");
+    if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId)
+      throw new Error("Sign in first");
     const { requireAvailablePaymentImage } = await import("./chat-image-availability.server");
     await requireAvailablePaymentImage(data.imageId, data.tokenId);
     const idol = await loadIdolByTokenId(data.tokenId);
