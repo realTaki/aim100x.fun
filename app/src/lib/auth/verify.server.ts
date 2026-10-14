@@ -9,13 +9,13 @@ export class UnauthorizedError extends Error {
     this.name = "UnauthorizedError";
   }
 }
-export type VerifiedUser = { id: string; email: string | null };
+export type VerifiedUser = { id: string; accountId: string; email: string | null };
 export async function getSessionUser(_bearerToken?: string): Promise<VerifiedUser | null> {
   const request = getRequest();
   if (!request) return null;
   const { sessionUserFromRequest } = await import("./wallet-auth-http.server");
   const session = await sessionUserFromRequest(request);
-  return session ? { id: session.id, email: session.email } : null;
+  return session ? { id: session.walletAddress.toLowerCase(), accountId: session.id, email: session.email } : null;
 }
 export async function requireUserId(bearerToken?: string) {
   if (!authConfigured) return DEV_USER_ID;

@@ -12,11 +12,7 @@ export async function managerWalletFromRequest(
 ): Promise<{ wallet: `0x${string}` } | { error: string; status: 401 | 403 }> {
   const user = await sessionUserFromRequest(request);
   if (!user) return { error: "Sign in required", status: 401 };
-  const fromId = walletAddressFromUserId(user.id);
-  const wallet =
-    fromId ?? (WALLET_RE.test(user.id) ? (getAddress(user.id) as `0x${string}`) : null);
-  if (!wallet || !user.loginAddress || wallet.toLowerCase() !== user.loginAddress.toLowerCase())
-    return { error: "Wallet session required", status: 403 };
+  const wallet = user.walletAddress;
   if (!(await isWalletIdolManager(wallet, tokenId))) {
     return { error: "Not the idol manager", status: 403 };
   }

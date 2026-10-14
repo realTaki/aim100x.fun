@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import {
   PASSKEY_ACCOUNT_FACTORY,
@@ -33,7 +34,7 @@ const monadChain = {
 
 const publicClient = createPublicClient({
   chain: monadChain,
-  transport: http(IDOLS100X_RPC_URL),
+  transport: monadTransport(10143),
 });
 
 function storageKey(owner: Address): string {

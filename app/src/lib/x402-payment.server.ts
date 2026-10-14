@@ -1,3 +1,5 @@
+import { monadTransport } from "./monad-rpc.ts";
+import { rejectMainnetSpending } from "./auth/mainnet-disabled.server.ts";
 import { wrapFetchWithSIWx } from "@x402/extensions/sign-in-with-x";
 import { x402Client } from "@x402/core/client";
 import type { PaymentRequirements } from "@x402/core/types";
@@ -45,10 +47,11 @@ export async function paidFetch(
   init: RequestInit,
   deps: { fetch?: typeof fetch; balance?: () => Promise<bigint> } = {},
 ): Promise<Response> {
+  rejectMainnetSpending();
   if (!sellers[url]) throw new Error("API endpoint is not allowed");
   const reader = createPublicClient({
     chain: mainnetWalletChain,
-    transport: http(mainnetWalletChain.rpcUrls.default.http[0]),
+    transport: monadTransport(143),
   });
   const readBalance =
     deps.balance ??

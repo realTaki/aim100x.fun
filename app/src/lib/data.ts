@@ -371,7 +371,7 @@ export const attachChatImage = createServerFn({ method: "POST" })
         const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
         const request = getRequest();
         const user = request ? await sessionUserFromRequest(request) : null;
-        if (!user || user.id !== context.userId || !user.loginAddress)
+        if (!user || user.walletAddress.toLowerCase() !== context.userId || !user.walletAddress)
           return { ok: false, error: "Prepare your wallet first" };
         const { issueImagePayment } = await import("@/lib/chat-image-payment.server");
         const { imagePaymentReader } = await import("./chat-image-payment.server");
@@ -379,11 +379,11 @@ export const attachChatImage = createServerFn({ method: "POST" })
         const reader = imagePaymentReader();
         const amount = usdcToAtomicString(idolImageUnlockPriceUsdc(idol));
         imageMessage.imagePaymentAmount = amount;
-        imageMessage.imagePaymentIntent = await issueImagePayment(user.id, {
+        imageMessage.imagePaymentIntent = await issueImagePayment(user.walletAddress.toLowerCase(), {
           imageId: hit.id,
           tokenId: data.tokenId,
           amount,
-          wallet: user.loginAddress,
+          wallet: user.walletAddress,
           fromBlock: String(await reader.getBlockNumber()),
         });
       }
@@ -412,10 +412,10 @@ export const prepareChatImage = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
     const user = await sessionUserFromRequest(getRequest());
-    if (!user?.loginAddress || user.id !== context.userId)
-      throw new Error("Sign in with your external wallet");
+    if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId)
+      throw new Error("Sign in to your APP account");
     const { prepareImagePayment } = await import("./chat-image-payment.server");
-    return prepareImagePayment(user.id, user.loginAddress, data.imageId, data.paymentIntent);
+    return prepareImagePayment(user.walletAddress.toLowerCase(), user.walletAddress, data.imageId, data.paymentIntent);
   });
 export const unlockChatImage = createServerFn({ method: "POST" })
   .validator(
@@ -436,14 +436,14 @@ export const unlockChatImage = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
     const user = await sessionUserFromRequest(getRequest());
-    if (!user?.loginAddress || user.id !== context.userId)
-      throw new Error("Sign in with your external wallet");
+    if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId)
+      throw new Error("Sign in to your APP account");
     const { settleImagePayment } = await import("./chat-image-payment.server");
     return {
       ok: true as const,
       ...(await settleImagePayment(
-        user.id,
-        user.loginAddress,
+        user.walletAddress.toLowerCase(),
+        user.walletAddress,
         data.imageId,
         data.paymentIntent,
         data.transactionHash,
@@ -468,7 +468,7 @@ export const quoteImageUnlock = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { sessionUserFromRequest } = await import("./auth/wallet-auth-http.server");
     const user = await sessionUserFromRequest(getRequest());
-    if (!user?.loginAddress || user.id !== context.userId) throw new Error("Sign in first");
+    if (!user?.walletAddress || user.walletAddress.toLowerCase() !== context.userId) throw new Error("Sign in first");
     const { requireAvailablePaymentImage } = await import("./chat-image-availability.server");
     await requireAvailablePaymentImage(data.imageId, data.tokenId);
     const idol = await loadIdolByTokenId(data.tokenId);
@@ -479,11 +479,11 @@ export const quoteImageUnlock = createServerFn({ method: "POST" })
       throw new Error("Photo price changed. Refresh before paying.");
     const { issueImagePayment, imagePaymentReader } = await import("./chat-image-payment.server");
     return {
-      paymentIntent: await issueImagePayment(user.id, {
+      paymentIntent: await issueImagePayment(user.walletAddress.toLowerCase(), {
         imageId: data.imageId,
         tokenId: data.tokenId,
         amount,
-        wallet: user.loginAddress,
+        wallet: user.walletAddress,
         fromBlock: String(await imagePaymentReader().getBlockNumber()),
       }),
     };

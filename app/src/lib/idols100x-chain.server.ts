@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { createPublicClient, http, type Address } from "viem";
 import type { FlexibleScene } from "@/lib/idols";
 import { parseScenesJson } from "@/lib/idol-fields";
@@ -23,7 +24,7 @@ const monadChain = {
 
 const publicClient = createPublicClient({
   chain: monadChain,
-  transport: http(IDOLS100X_RPC_URL),
+  transport: monadTransport(10143),
 });
 
 export type MintedIdolOnChain = {

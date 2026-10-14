@@ -1,3 +1,4 @@
+import { monadTransport } from "../monad-rpc.ts";
 import {
   createPublicClient,
   encodeFunctionData,
@@ -77,7 +78,7 @@ export class LonelyFunsClient {
         nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
         rpcUrls: { default: { http: [session.rpcUrl] } },
       },
-      transport: http(session.rpcUrl),
+      transport: monadTransport(10143),
     });
   }
 

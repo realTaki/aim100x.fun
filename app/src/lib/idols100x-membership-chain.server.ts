@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { createPublicClient, http, type Address } from "viem";
 import {
   IDOLS100X_ADDRESS,
@@ -14,7 +15,7 @@ const monadChain = {
 
 const publicClient = createPublicClient({
   chain: monadChain,
-  transport: http(IDOLS100X_RPC_URL),
+  transport: monadTransport(10143),
 });
 
 const WALLET_USER_RE = /^0x[a-fA-F0-9]{40}$/;

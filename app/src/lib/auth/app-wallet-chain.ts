@@ -9,5 +9,5 @@ export const testnetWalletChain = {
 };
 export const mainnetWalletChain = {
   ...monad,
-  rpcUrls: { default: { http: ["https://rpc.monad.xyz"] } },
+  rpcUrls: { default: { http: ["/api/rpc?chainId=143"] } },
 };

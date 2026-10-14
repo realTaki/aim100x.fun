@@ -1,3 +1,4 @@
+import { monadTransport } from "../monad-rpc.ts";
 import {
   concat,
   createPublicClient,
@@ -118,7 +119,7 @@ export async function executeAgentCall(session: McpAgentSession, data: Hex): Pro
       nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
       rpcUrls: { default: { http: [session.rpcUrl] } },
     },
-    transport: http(session.rpcUrl),
+    transport: monadTransport(10143),
   });
   const sender = session.agentAccount;
   const code = await client.getCode({ address: sender });
