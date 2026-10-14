@@ -88,3 +88,11 @@ Anchored photo jobs use the verified MiniMax `image-01` route by default. Text-o
 NFT/image payments are always ordinary external-wallet transactions. Photo availability is checked before requesting wallet signatures. Payment calldata carries a unique checkout tag after the standard `pay` arguments, and receipt confirmation verifies the sender, collection, amount and tag. Retries reconfirm the stored hash without another payment. The app sponsors only mainnet API-wallet initialization.
 
 Storage setup, dry runs, migration commands and remaining live checks: [migration guide](docs/msgs-migration.md). Runtime requires Neon/R2 configuration and initialized schemas before deployment. This implementation has not copied real data or redeployed the NFT. Historical content already published on the legacy contract remains public.
+
+### Temporary MiniMax migration fallback
+
+`app/src/lib/minimax-fallback.server.ts` bridges unpaid Monad Hub failures to the existing server-side `MINIMAX_CN_API_KEY`. Chat uses MiniMax-M3; images use image-01 with the original reference, count and dimensions. Direct fallback requests are paid by the platform API key, not the user's USDC wallet. This also covers insufficient user USDC while the migration bridge is enabled. Wallet login and content permissions still apply. Voice/STT are unchanged.
+
+It defaults on when the CN key exists. Set `AIM_TEMP_MINIMAX_FALLBACK=false` to disable. A settled, submitted or uncertain payment never triggers fallback. Primary requests have a 25-second budget and fallback a 20-second budget within the original deadline. Log `ai.temporary_minimax_fallback` records only chat/image purpose. No provider or wallet secrets are logged.
+
+To remove the bridge, remove the two `withTemporaryMiniMaxFallback` calls/imports in `ai-provider.ts`, restore their direct primary calls, and delete the fallback module/test and test-script entry. Keep the payment-state guard and Monid settlement-header preservation.
