@@ -12,12 +12,12 @@ import { neon } from "@neondatabase/serverless";
 import { IDOLS100X_ADDRESS, IDOLS100X_CHAIN_ID } from "./idols100x.ts";
 export const MEDIA_COLLECTION_SCOPE = `${IDOLS100X_CHAIN_ID}:${IDOLS100X_ADDRESS.toLowerCase()}`;
 export const MEDIA_OBJECT_PREFIX = `aim100x/${MEDIA_COLLECTION_SCOPE}/idol-media`;
+export const MEDIA_BUCKET_NAME = "aim100x";
 
 export function mediaStorageConfigured(): boolean {
   return [
     databaseUrl(),
     process.env.R2_ACCOUNT_ID,
-    process.env.R2_BUCKET_NAME,
     process.env.R2_ACCESS_KEY_ID,
     process.env.R2_SECRET_ACCESS_KEY,
   ].every(Boolean);
@@ -75,31 +75,25 @@ function s3() {
   });
 }
 
-function bucket() {
-  const name = process.env.R2_BUCKET_NAME;
-  if (!name) throw new Error("R2_BUCKET_NAME is required");
-  return name;
-}
-
 export async function putMediaObject(key: string, bytes: Buffer, mime: string) {
   await s3().send(
-    new PutObjectCommand({ Bucket: bucket(), Key: key, Body: bytes, ContentType: mime }),
+    new PutObjectCommand({ Bucket: MEDIA_BUCKET_NAME, Key: key, Body: bytes, ContentType: mime }),
   );
 }
 
 export async function deleteMediaObject(key: string) {
-  await s3().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+  await s3().send(new DeleteObjectCommand({ Bucket: MEDIA_BUCKET_NAME, Key: key }));
 }
 
 export async function readMediaObject(key: string): Promise<Buffer> {
-  const object = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+  const object = await s3().send(new GetObjectCommand({ Bucket: MEDIA_BUCKET_NAME, Key: key }));
   if (!object.Body) throw new Error("Media object has no body");
   return Buffer.from(await object.Body.transformToByteArray());
 }
 
 export async function mediaObjectExists(key: string) {
   try {
-    await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    await s3().send(new HeadObjectCommand({ Bucket: MEDIA_BUCKET_NAME, Key: key }));
     return true;
   } catch (error) {
     if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404)
@@ -110,7 +104,7 @@ export async function mediaObjectExists(key: string) {
 
 // Internal only: signed links are never sent to browsers or stored in Neon.
 export async function signedMediaUrl(key: string) {
-  return getSignedUrl(s3(), new GetObjectCommand({ Bucket: bucket(), Key: key }), {
+  return getSignedUrl(s3(), new GetObjectCommand({ Bucket: MEDIA_BUCKET_NAME, Key: key }), {
     expiresIn: 60,
   });
 }
