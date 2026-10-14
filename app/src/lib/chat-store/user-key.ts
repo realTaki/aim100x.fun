@@ -22,11 +22,12 @@ export function localAccountLookupKeys(input: {
 function keysForUser(user: AppUser): string[] {
   const wallet = walletAddressFromUser(user);
   const rec = passkeyRecordForAddress(wallet ?? user.id);
-  return localAccountLookupKeys({
+  const oldKeys = localAccountLookupKeys({
     credentialId: rec?.credentialId,
     wallet: wallet ?? identiconSeedFromUser(user),
-    userId: user.id,
+    userId: user.legacyLoginAddress ?? user.id,
   });
+  return user.accountId ? [user.accountId, ...oldKeys] : oldKeys;
 }
 
 /** Stable OPFS/sqlite key — passkey credential when known, else smart-account address. */

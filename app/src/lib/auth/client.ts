@@ -4,6 +4,8 @@ import { createWalletClient, custom, getAddress, stringToHex, type EIP1193Provid
 export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 export type WalletSessionRow = {
   id: string;
+  accountId: string;
+  provider: "wallet" | "privy" | "mera";
   displayName: string | null;
   primaryEmail: string | null;
   embedded?: boolean;
@@ -41,14 +43,16 @@ export async function walletRequest<T>(path: string, body?: unknown): Promise<T>
 }
 export async function fetchWalletSession(): Promise<WalletSessionRow | null> {
   const body = await walletRequest<{
-    user: { id: string; name: string | null; loginAddress: string; walletAddress: string } | null;
+    user: { id: string; name: string | null; loginAddress: string; walletAddress: string; identity: { provider: "wallet" | "privy" | "mera" } } | null;
   }>("get-session");
   return body.user
     ? {
-        id: body.user.id,
+        id: body.user.walletAddress.toLowerCase(),
+        accountId: body.user.id,
+        provider: body.user.identity.provider,
         displayName: body.user.name,
         primaryEmail: null,
-        embedded: false,
+        embedded: true,
         loginAddress: body.user.loginAddress,
         walletAddress: body.user.walletAddress,
       }
@@ -76,6 +80,10 @@ export async function signInWithWallet(provider: EIP1193Provider, callbackURL = 
     params: [stringToHex(message), address],
   })) as string;
   await walletRequest("wallet/verify", { message, signature });
+  await finishLogin(callbackURL);
+}
+
+export async function finishLogin(callbackURL = "/") {
   liveRow = await fetchWalletSession();
   if (!liveRow) throw new Error("Wallet session was not created");
   resumeOnce = Promise.resolve(liveRow);

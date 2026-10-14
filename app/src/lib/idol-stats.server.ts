@@ -1,3 +1,4 @@
+import { monadTransport } from "./monad-rpc.ts";
 import { getCache } from "@vercel/functions";
 import { createPublicClient, http } from "viem";
 import { loadIdolCatalog } from "./idol-catalog.server";
@@ -12,11 +13,7 @@ import { IDOL_STATS_REFRESH_MS, type IdolStats } from "./idol-stats";
 import { createSnapshotCache, type Snapshot } from "./snapshot-cache";
 
 const client = createPublicClient({
-  transport: http(IDOLS100X_RPC_URL, {
-    batch: { batchSize: 20, wait: 10 },
-    retryCount: 1,
-    timeout: 10_000,
-  }),
+  transport: monadTransport(10143),
 });
 // Hobby caches can be shared by projects: explicitly include this project,
 // chain, collection and schema version. No user/session data is stored here.

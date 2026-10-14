@@ -39,7 +39,7 @@ function Login() {
         aria-hidden
         className="pointer-events-none absolute top-1/4 left-1/2 size-64 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl"
       />
-      <LfLogo className="relative size-20" />
+      <LfLogo className="relative text-2xl" />
       {isPending || user ? (
         <div className="mt-8 size-10 animate-pulse rounded-full bg-surface-2" />
       ) : (

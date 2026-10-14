@@ -1,3 +1,5 @@
+import { monadTransport } from "../monad-rpc.ts";
+import { findRpcConfigurationError } from "../monad-rpc.server.ts";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import {
   PASSKEY_ACCOUNT_ABI,
@@ -38,7 +40,7 @@ const publicClient = createPublicClient({
     nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
     rpcUrls: { default: { http: [MCP_CHAIN.rpcUrl] } },
   },
-  transport: http(MCP_CHAIN.rpcUrl),
+  transport: monadTransport(10143),
 });
 
 function bearerFromRequest(request: Request): string | null {
@@ -81,7 +83,9 @@ async function bindOnChain(pubkeyX: bigint, pubkeyY: bigint): Promise<Address | 
       if (onChainX !== pubkeyX || onChainY !== pubkeyY) return null;
     }
     return agentAccount;
-  } catch {
+  } catch (error) {
+    const config = findRpcConfigurationError(error);
+    if (config) throw config;
     return null;
   }
 }

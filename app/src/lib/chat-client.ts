@@ -1,3 +1,4 @@
+import { pendingTextRequest } from "./text-request";
 import type { Idol } from "@/lib/idols";
 import type { AppUser } from "@/lib/auth/use-current-user";
 import { imageIdFromUrl } from "@/lib/library-rows";
@@ -102,7 +103,7 @@ function chatSendErrorCopy(error?: string): string {
   if (error === "ai_timeout") return "Chat timed out. Try again.";
   if (error === "ai_request_failed") return "Chat didn't respond. Try again.";
   if (error && error !== "not_fan") {
-    return `Chat failed — screenshot this\n${error.slice(0, 180)}`;
+    return error.slice(0, 450);
   }
   return "Couldn't send. Try again.";
 }
@@ -325,9 +326,22 @@ export async function sendChatForUser(
   };
 
   let result: Awaited<ReturnType<typeof sendChatServer>>;
+  let pendingKey: string | undefined;
+  let pendingId: string | undefined;
   try {
-    result = await sendChatServer({
-      data: {
+    const key = `aim:text:${user.accountId ?? user.id}:${idol.tokenId}`;
+    if (
+      !localStorage.getItem(key) &&
+      !window.confirm(
+        "Send this text message for 1 testnet LUSD? The platform funds gas. Model retries reuse this payment.",
+      )
+    )
+      return finishLocally("Message cancelled before payment.");
+    const pending = pendingTextRequest(
+      localStorage,
+      user.accountId ?? user.id,
+      idol.tokenId,
+      {
         tokenId: idol.tokenId,
         content,
         fanWallet: fanWallet ?? undefined,
@@ -347,8 +361,11 @@ export async function sendChatForUser(
           usedImageIds: seenImageIds(thread),
         },
       },
-      fetch: hobbyServerFnFetch,
-    });
+      () => crypto.randomUUID(),
+    );
+    pendingKey = pending.key;
+    pendingId = pending.body.requestId;
+    result = await sendChatServer({ data: pending.body, fetch: hobbyServerFnFetch });
   } catch (err) {
     if (isUnauthorized(err)) throw err;
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : "network";
@@ -402,6 +419,10 @@ export async function sendChatForUser(
   const kept = keepSentThread(optimistic, updatedThread);
   await saveLocalThread(storageUserId, String(idol.tokenId), withUsedImageIds(kept));
   publishLiveThread(sessionKey, kept);
+  if (pendingKey) {
+    const saved = localStorage.getItem(pendingKey);
+    if (saved && JSON.parse(saved).requestId === pendingId) localStorage.removeItem(pendingKey);
+  }
   return {
     ...result,
     assistantMessage,

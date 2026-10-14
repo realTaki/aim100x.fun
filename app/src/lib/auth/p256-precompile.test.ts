@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { IDOLS100X_RPC_URL } from "../idols100x.ts";
+import { alchemyRequest } from "../monad-rpc.server.ts";
 import { P256_VERIFIER } from "./passkey-aa.ts";
 
 /** EIP-7951 hello-world vector (same 160-byte RIP-7212 layout). */
@@ -15,21 +15,8 @@ const VALID =
 const SUCCESS = "0x" + "00".repeat(31) + "01";
 
 async function ethCall(data: string): Promise<string> {
-  const res = await fetch(IDOLS100X_RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_call",
-      params: [{ to: P256_VERIFIER, data }, "latest"],
-    }),
-  });
-  if (!res.ok) throw new Error(`rpc http ${res.status}`);
-  const body = (await res.json()) as { result?: string; error?: { message?: string } };
-  if (body.error) throw new Error(body.error.message ?? "rpc error");
-  if (typeof body.result !== "string") throw new Error("rpc missing result");
-  return body.result;
+  if (process.env.RUN_CHAIN_TESTS !== "true") throw new Error("RUN_CHAIN_TESTS is not enabled");
+  return alchemyRequest(10143, { method: "eth_call", params: [{ to: P256_VERIFIER, data }, "latest"] });
 }
 
 describe("Monad P256VERIFY 0x0100", () => {

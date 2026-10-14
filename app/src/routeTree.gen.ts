@@ -17,6 +17,7 @@ import { Route as MeRouteImport } from './routes/me'
 import { Route as SubscribedRouteImport } from './routes/subscribed'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ApiBundlerRouteImport } from './routes/api/bundler'
+import { Route as ApiRpcRouteImport } from './routes/api/rpc'
 import { Route as ChatTokenIdRouteImport } from './routes/chat.$tokenId'
 import { Route as IdolTokenIdRouteImport } from './routes/idol.$tokenId'
 import { Route as MeIndexRouteImport } from './routes/me.index'
@@ -71,6 +72,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const ApiBundlerRoute = ApiBundlerRouteImport.update({
   id: '/api/bundler',
   path: '/api/bundler',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRpcRoute = ApiRpcRouteImport.update({
+  id: '/api/rpc',
+  path: '/api/rpc',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatTokenIdRoute = ChatTokenIdRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/subscribed': typeof SubscribedRoute
   '/welcome': typeof WelcomeRoute
   '/api/bundler': typeof ApiBundlerRoute
+  '/api/rpc': typeof ApiRpcRoute
   '/chat/$tokenId': typeof ChatTokenIdRoute
   '/idol/$tokenId': typeof IdolTokenIdRoute
   '/me/manager': typeof MeManagerRouteWithChildren
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/subscribed': typeof SubscribedRoute
   '/welcome': typeof WelcomeRoute
   '/api/bundler': typeof ApiBundlerRoute
+  '/api/rpc': typeof ApiRpcRoute
   '/chat/$tokenId': typeof ChatTokenIdRoute
   '/idol/$tokenId': typeof IdolTokenIdRoute
   '/me': typeof MeIndexRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/subscribed': typeof SubscribedRoute
   '/welcome': typeof WelcomeRoute
   '/api/bundler': typeof ApiBundlerRoute
+  '/api/rpc': typeof ApiRpcRoute
   '/chat/$tokenId': typeof ChatTokenIdRoute
   '/idol/$tokenId': typeof IdolTokenIdRoute
   '/me/manager': typeof MeManagerRouteWithChildren
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/subscribed'
     | '/welcome'
     | '/api/bundler'
+    | '/api/rpc'
     | '/chat/$tokenId'
     | '/idol/$tokenId'
     | '/me/manager'
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/subscribed'
     | '/welcome'
     | '/api/bundler'
+    | '/api/rpc'
     | '/chat/$tokenId'
     | '/idol/$tokenId'
     | '/me'
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/subscribed'
     | '/welcome'
     | '/api/bundler'
+    | '/api/rpc'
     | '/chat/$tokenId'
     | '/idol/$tokenId'
     | '/me/manager'
@@ -311,6 +323,7 @@ export interface RootRouteChildren {
   SubscribedRoute: typeof SubscribedRoute
   WelcomeRoute: typeof WelcomeRoute
   ApiBundlerRoute: typeof ApiBundlerRoute
+  ApiRpcRoute: typeof ApiRpcRoute
   ChatTokenIdRoute: typeof ChatTokenIdRoute
   IdolTokenIdRoute: typeof IdolTokenIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bundler'
       fullPath: '/api/bundler'
       preLoaderRoute: typeof ApiBundlerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rpc': {
+      id: '/api/rpc'
+      path: '/api/rpc'
+      fullPath: '/api/rpc'
+      preLoaderRoute: typeof ApiRpcRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat/$tokenId': {
@@ -527,6 +547,7 @@ const rootRouteChildren: RootRouteChildren = {
   SubscribedRoute: SubscribedRoute,
   WelcomeRoute: WelcomeRoute,
   ApiBundlerRoute: ApiBundlerRoute,
+  ApiRpcRoute: ApiRpcRoute,
   ChatTokenIdRoute: ChatTokenIdRoute,
   IdolTokenIdRoute: IdolTokenIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

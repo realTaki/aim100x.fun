@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PRODUCT_DOCS, handleProductDocsRequest } from "./product-docs.ts";
 
 describe("agent-facing /docs", () => {
-  it("names product concepts without deploy or ERC-6553", () => {
+  it("names current product concepts and wallet boundaries", () => {
     assert.match(PRODUCT_DOCS, /^# aim100x.fun/m);
     assert.match(PRODUCT_DOCS, /https:\/\/aim100x\.fun\/mcp/);
     assert.match(PRODUCT_DOCS, /lf1\./);
@@ -13,16 +14,30 @@ describe("agent-facing /docs", () => {
     assert.match(PRODUCT_DOCS, /ERC-721/);
     assert.match(PRODUCT_DOCS, /ERC-6551/);
     assert.match(PRODUCT_DOCS, /token-bound account/);
-    assert.match(PRODUCT_DOCS, /Not ERC-6553/);
+    assert.doesNotMatch(PRODUCT_DOCS, /ERC-6553/);
     assert.match(PRODUCT_DOCS, /LonelyUSD \(LUSD\)/);
     assert.match(PRODUCT_DOCS, /欢迎词/);
     assert.match(PRODUCT_DOCS, /Prefer language/);
     assert.match(PRODUCT_DOCS, /`id` \/ `topic` \/ `scene` \/ `opening`/);
-    assert.match(PRODUCT_DOCS, /stores nothing/);
+    assert.match(PRODUCT_DOCS, /request memory/);
     assert.doesNotMatch(PRODUCT_DOCS, /0x[0-9a-fA-F]{40}/);
     assert.doesNotMatch(PRODUCT_DOCS, /\bCI\b/);
     assert.doesNotMatch(PRODUCT_DOCS, /npm run /);
     assert.doesNotMatch(PRODUCT_DOCS, /vercel env/i);
+  });
+
+  it("keeps README and /docs aligned on current behavior and implementation status", () => {
+    const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
+    assert.equal(PRODUCT_DOCS.split("\n\n")[1], readme.split("\n\n")[1]);
+    const status = (text: string) => text.split("## Implementation status\n\n")[1]?.split("\n\nSubscriptions remain")[0];
+    assert.ok(status(PRODUCT_DOCS));
+    assert.equal(status(PRODUCT_DOCS), status(readme));
+    for (const text of [PRODUCT_DOCS, readme]) {
+      assert.match(text, /one-time LUSD subscription/);
+      assert.match(text, /per API request/);
+      assert.match(text, /Under consideration, not implemented in main/);
+    }
+    assert.doesNotMatch(PRODUCT_DOCS, /\| `\/login` \| Passkey/);
   });
 
   it("uses English names for tabs and roles, glossing Chinese UI tokens", () => {
