@@ -15,6 +15,11 @@ const offer = {
 };
 it("retains strict mainnet offer validation without enabling spending", () => {
   assert.equal(validPaymentOffer(MONID_RUN_URL, offer), true);
+  assert.equal(
+    validPaymentOffer("https://blockrun.ai/api/v1/chat/completions", offer),
+    false,
+    "Kimi/Grok/MiniMax share Monid; do not add a direct BlockRun seller",
+  );
   for (const changed of [
     { network: "eip155:10143" as const },
     { asset: owner.address },

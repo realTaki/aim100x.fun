@@ -8,6 +8,7 @@ import {
   imageGenerateRequest,
   decodeGeneratedImages,
 } from "./ai-provider.ts";
+import { MONAD_KIMI_CHAT_MODEL, monadChatPayload } from "./monad-ai.ts";
 
 const originalKey = process.env.MINIMAX_CN_API_KEY;
 const originalSwitch = process.env.AIM_TEMP_MINIMAX_FALLBACK;
@@ -70,6 +71,31 @@ it("falls back once to actual CN MiniMax M3 with tools and thinking disabled on 
         { messages: [{ role: "user", content: "hi" }], tools, tool_choice: "auto" },
         { signal },
       ),
+    opts,
+  );
+  assert.equal(result.status, 200);
+  assert.equal(calls, 1);
+});
+
+it("unpaid Kimi Hub outage still falls back once to CN MiniMax, not another x402 model", async () => {
+  const opts = options();
+  const kimi = monadChatPayload({ messages: [{ role: "user", content: "hi" }] }, MONAD_KIMI_CHAT_MODEL);
+  assert.equal(kimi.model, "moonshot/kimi-k3");
+  let calls = 0;
+  globalThis.fetch = async (url, init) => {
+    calls++;
+    assert.equal(url, "https://api.minimax.cn/v1/chat/completions");
+    const body = JSON.parse(init?.body as string);
+    assert.equal(body.model, "MiniMax-M3");
+    assert.notEqual(body.model, kimi.model);
+    return success();
+  };
+  const result = await withTemporaryMiniMaxFallback(
+    async () => {
+      throw new UnpaidAiRequestError(Error("kimi hub unpaid"));
+    },
+    (backend, signal) =>
+      postChatCompletions(backend, { messages: [{ role: "user", content: "hi" }] }, { signal }),
     opts,
   );
   assert.equal(result.status, 200);
