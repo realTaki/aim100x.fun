@@ -71,3 +71,20 @@ it('rejects Mera RP mismatch and leaves mainnet initialization disabled after lo
  const a=await login(deps);
  assert.equal((await handleWalletAuthRequest(req('wallet/prepare',{},a.cookie),deps)).status,503);
 });
+
+it('Mera defaults to the production RP without environment settings and retains account derivation',async()=>{
+ const explicit=await login(dependencies(),'mera');
+ delete process.env.MERA_RP_ID;
+ const defaulted=await login(dependencies(),'mera');
+ assert.equal(defaulted.body.user.identity.issuer,'aim100x.fun');
+ assert.equal(defaulted.body.user.id,explicit.body.user.id);
+ assert.equal(defaulted.body.user.walletAddress,explicit.body.user.walletAddress);
+});
+it('rejects preview and insecure Mera challenges before creating a challenge record',async()=>{
+ delete process.env.MERA_RP_ID;
+ const deps=dependencies();deps.store!.challenge=async()=>{assert.fail('Rejected origin must not persist a challenge');};
+ for(const source of ['https://preview.vercel.app','http://aim100x.fun','https://evilaim100x.fun']){
+  const request=new Request(source+'/api/auth/wallet/challenge',{method:'POST',headers:{origin:source,'Content-Type':'application/json'},body:JSON.stringify({provider:'mera',address:signer.address})});
+  assert.equal((await handleWalletAuthRequest(request,deps)).status,503);
+ }
+});

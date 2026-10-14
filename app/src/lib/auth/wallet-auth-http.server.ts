@@ -1,3 +1,4 @@
+import { resolveMeraRpId, assertMeraOrigin } from "./mera-config.ts";
 import { LONELY_USD_ADDRESS } from "../idols100x.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash, randomBytes } from "node:crypto";
@@ -89,13 +90,13 @@ export async function handleWalletAuthRequest(
         provider === "wallet"
           ? "eip155"
           : provider === "mera"
-            ? process.env.MERA_RP_ID
+            ? resolveMeraRpId(process.env.MERA_RP_ID)
             : process.env.PRIVY_APP_ID;
-      if (
-        !issuer ||
-        (provider === "mera" && url.hostname !== issuer && !url.hostname.endsWith("." + issuer))
-      )
-        return json({ error: "Login provider is not configured for this origin" }, 503);
+      if (!issuer) return json({ error: "Login provider is not configured for this origin" }, 503);
+      if (provider === "mera") {
+        try { assertMeraOrigin(url.origin, issuer); }
+        catch { return json({ error: "Mera passkeys require HTTPS on the configured RP domain" }, 503); }
+      }
       if (provider === "privy") issuer = `privy.io/${issuer}`;
       const nonce = randomBytes(32).toString("hex");
       let message = nonce;
@@ -150,6 +151,11 @@ export async function handleWalletAuthRequest(
           if (identity.provider !== "privy" || identity.issuer !== p.issuer) throw new Error();
         } else {
           if (p.provider !== "wallet" && p.provider !== "mera") throw new Error();
+          if (p.provider === "mera") {
+            const rpId = resolveMeraRpId(process.env.MERA_RP_ID);
+            if (p.issuer !== rpId) throw new Error();
+            assertMeraOrigin(url.origin, rpId);
+          }
           if (
             typeof body.signature !== "string" ||
             !/^0x[a-f0-9]+$/i.test(body.signature) ||
