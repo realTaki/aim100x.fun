@@ -1,5 +1,11 @@
 import { initializeAuthSchema } from "../src/lib/auth/account-store.server.ts";
 import { initializeProductSchema } from "../src/lib/auth/product-wallet.server.ts";
+import { initializeTextChatSchema } from "../src/lib/testnet-chat-store.server.ts";
+import { initializeGasSchema } from "../src/lib/auth/testnet-gas.server.ts";
 await initializeAuthSchema();
 await initializeProductSchema();
-console.log("Authentication and product operation schemas initialized.");
+await initializeTextChatSchema();
+await initializeGasSchema();
+console.log(
+  "Authentication, product operations, text billing and gas allowance schemas initialized.",
+);

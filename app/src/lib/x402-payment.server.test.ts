@@ -13,63 +13,11 @@ const offer = {
   maxTimeoutSeconds: 300,
   extra: { name: "USDC", version: "2" },
 };
-const challenge = () =>
-  new Response("{}", {
-    status: 402,
-    headers: {
-      "PAYMENT-REQUIRED": Buffer.from(
-        JSON.stringify({
-          x402Version: 2,
-          resource: { url: MONID_RUN_URL, description: "Chat", mimeType: "application/json" },
-          accepts: [offer],
-        }),
-      ).toString("base64"),
-    },
-  });
-it("automatically signs exactly one mainnet USDC payment with this user's EOA", async () => {
-  const requests: Request[] = [];
-  const mock = (async (input) => {
-    const req = input as Request;
-    requests.push(req);
-    if (requests.length === 1) return challenge();
-    const payload = JSON.parse(
-      Buffer.from(req.headers.get("PAYMENT-SIGNATURE")!, "base64").toString(),
-    );
-    assert.equal(payload.accepted.network, "eip155:143");
-    assert.equal(payload.payload.authorization.from.toLowerCase(), owner.address.toLowerCase());
-    assert.equal(payload.payload.authorization.value, "5000");
-    assert.match(payload.payload.signature, /^0x[0-9a-f]{130}$/i);
-    return new Response('{"choices":[]}', {
-      headers: {
-        "PAYMENT-RESPONSE": Buffer.from(
-          JSON.stringify({
-            success: true,
-            network: "eip155:143",
-            payer: owner.address,
-            transaction: "0x" + "11".repeat(32),
-          }),
-        ).toString("base64"),
-      },
-    });
-  }) as typeof fetch;
-  assert.equal(
-    (
-      await paidFetch(
-        owner,
-        MONID_RUN_URL,
-        { method: "POST", body: "{}" },
-        { fetch: mock, balance: async () => 5000n },
-      )
-    ).status,
-    200,
-  );
-  assert.equal(requests.length, 2);
-});
-it("rejects wrong chains, tokens, recipients, excessive quotes and Permit2 before signing", () => {
+it("retains strict mainnet offer validation without enabling spending", () => {
   assert.equal(validPaymentOffer(MONID_RUN_URL, offer), true);
   for (const changed of [
     { network: "eip155:10143" as const },
-    { asset: "0x" + "11".repeat(20) },
+    { asset: owner.address },
     { payTo: owner.address },
     { amount: "100001" },
     { amount: "-1" },
@@ -77,91 +25,46 @@ it("rejects wrong chains, tokens, recipients, excessive quotes and Permit2 befor
   ])
     assert.equal(validPaymentOffer(MONID_RUN_URL, { ...offer, ...changed }), false);
 });
-it("does not send a signed request when balance is insufficient", async () => {
-  let requests = 0;
-  await assert.rejects(
-    paidFetch(
-      owner,
-      MONID_RUN_URL,
-      { method: "POST", body: "{}" },
-      {
-        fetch: (async () => {
-          requests++;
-          return challenge();
-        }) as typeof fetch,
-        balance: async () => 0n,
+for (const scenario of [
+  "funded wallet",
+  "zero balance",
+  "provider timeout",
+  "pricing error",
+  "missing settlement",
+]) {
+  it(`mainnet hard block precedes signing, RPC and provider access: ${scenario}`, async () => {
+    let signatures = 0,
+      requests = 0,
+      balances = 0;
+    const account = {
+      ...owner,
+      signTypedData: async () => {
+        signatures++;
+        throw new Error("must not sign");
       },
-    ),
-    /充值/,
-  );
-  assert.equal(requests, 1);
-});
-it("does not retry an ambiguous paid request", async () => {
-  let requests = 0;
-  await assert.rejects(
-    paidFetch(
-      owner,
-      MONID_RUN_URL,
-      { method: "POST", body: "{}" },
-      {
-        fetch: (async () => {
-          if (++requests === 1) return challenge();
-          throw new Error("timeout");
-        }) as typeof fetch,
-        balance: async () => 5000n,
-      },
-    ),
-    /confirmation is unavailable/,
-  );
-  assert.equal(requests, 2);
-});
-it("rejects a provider pricing error before sending authorization", async () => {
-  let requests = 0;
-  await assert.rejects(
-    paidFetch(
-      owner,
-      MONID_RUN_URL,
-      { method: "POST", body: "{}" },
-      {
-        fetch: (async () => {
-          requests++;
-          return new Response("{}", {
-            status: 402,
-            headers: {
-              "PAYMENT-REQUIRED": Buffer.from(
-                JSON.stringify({
-                  x402Version: 2,
-                  resource: {
-                    url: MONID_RUN_URL,
-                    description: "ERROR: Unable to calculate price.",
-                    mimeType: "application/json",
-                  },
-                  accepts: [offer],
-                }),
-              ).toString("base64"),
+    };
+    for (let retry = 0; retry < 2; retry++)
+      await assert.rejects(
+        paidFetch(
+          account,
+          MONID_RUN_URL,
+          { method: "POST", body: "{}" },
+          {
+            fetch: async () => {
+              requests++;
+              throw new Error(scenario);
             },
-          });
-        }) as typeof fetch,
-        balance: async () => 5000n,
-      },
-    ),
-    /valid price/,
-  );
-  assert.equal(requests, 1);
-});
-it("does not silently accept a paid response without a settlement receipt", async () => {
-  let requests = 0;
-  await assert.rejects(
-    paidFetch(
-      owner,
-      MONID_RUN_URL,
-      { method: "POST", body: "{}" },
-      {
-        fetch: (async () => (++requests === 1 ? challenge() : new Response("{}"))) as typeof fetch,
-        balance: async () => 5000n,
-      },
-    ),
-    /no settlement receipt/,
-  );
-  assert.equal(requests, 2);
-});
+            balance: async () => {
+              balances++;
+              return scenario === "zero balance" ? 0n : 5000n;
+            },
+          },
+        ),
+        /Mainnet spending and delegation are disabled/,
+      );
+    assert.deepEqual(
+      { signatures, requests, balances },
+      { signatures: 0, requests: 0, balances: 0 },
+    );
+  });
+}
