@@ -138,3 +138,45 @@ describe("private author config authorization", () => {
     await assert.rejects(client.getIdol(1), /RPC unavailable/);
   });
 });
+
+it("MCP status reports testnet 10143 and keeps Alchemy reads separate from the bundler", async (t) => {
+  const { createMcpHandler } = await import("@modelcontextprotocol/server");
+  const { createLonelyFunsMcpServer } = await import("./server.ts");
+  const { LonelyFunsClient } = await import("./client.ts");
+  const { MCP_CHAIN } = await import("./constants.ts");
+  const account = "0x0000000000000000000000000000000000000001" as const;
+  t.mock.method(LonelyFunsClient.prototype, "account", async () => ({ address: account, deployed: true }));
+  t.mock.method(LonelyFunsClient.prototype, "listManageableIdols", async () => []);
+  const handler = createMcpHandler(() => createLonelyFunsMcpServer({
+    ...MCP_CHAIN, agentAccount: account, pubkeyX: 1n, pubkeyY: 2n,
+    credentialId: "0x00", userOpTimeoutMs: 1000,
+  }), { legacy: "stateless", responseMode: "json" });
+  const response = await handler.fetch(new Request("https://aim100x.fun/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_agent_status", arguments: {} } }),
+  }));
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  const result = JSON.parse(response.headers.get("content-type")?.includes("text/event-stream")
+    ? text.split("\n").find((line) => line.startsWith("data: "))!.slice(6)
+    : text);
+  assert.equal(result.result.structuredContent.chainId, 10143);
+  assert.equal(MCP_CHAIN.rpcUrl, "/api/rpc?chainId=10143");
+  assert.equal(MCP_CHAIN.bundlerUrl, "https://public.pimlico.io/v2/10143/rpc");
+  assert.doesNotMatch(JSON.stringify(result), /46630|alchemy\.com|offline-fixture/);
+});
+
+it("MCP reports missing Alchemy configuration as 503 rather than invalid credentials", async (t) => {
+  const previous = process.env.ALCHEMY_MONAD_TESTNET_RPC_URL;
+  t.after(() => { if (previous === undefined) delete process.env.ALCHEMY_MONAD_TESTNET_RPC_URL; else process.env.ALCHEMY_MONAD_TESTNET_RPC_URL = previous; });
+  delete process.env.ALCHEMY_MONAD_TESTNET_RPC_URL;
+  t.mock.method(globalThis, "fetch", async () => { assert.fail("Missing RPC must not contact a provider"); });
+  const key = fixtureKey();
+  const token = await createMcpBearerToken(key, false);
+  const response = await handleMcpHttpRequest(new Request("https://aim100x.fun/mcp", {
+    method: "POST", headers: { Authorization: `Bearer ${token}` },
+  }));
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /ALCHEMY_MONAD_TESTNET_RPC_URL is required/);
+});

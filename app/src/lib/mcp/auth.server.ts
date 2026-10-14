@@ -1,4 +1,5 @@
 import { monadTransport } from "../monad-rpc.ts";
+import { findRpcConfigurationError } from "../monad-rpc.server.ts";
 import { createPublicClient, http, type Address, type Hex } from "viem";
 import {
   PASSKEY_ACCOUNT_ABI,
@@ -82,7 +83,9 @@ async function bindOnChain(pubkeyX: bigint, pubkeyY: bigint): Promise<Address | 
       if (onChainX !== pubkeyX || onChainY !== pubkeyY) return null;
     }
     return agentAccount;
-  } catch {
+  } catch (error) {
+    const config = findRpcConfigurationError(error);
+    if (config) throw config;
     return null;
   }
 }

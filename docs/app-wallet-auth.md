@@ -2,6 +2,8 @@
 
 Development branch: `feat/independent-app-wallets`, based on main `ac0730d`. This change has not been deployed. The previous main-only documentation patch is preserved separately; this document describes the new implementation.
 
+Current testnet-only scope supersedes the historical mainnet payment/delegation design below: mainnet spending, delegation and RPC are disabled. See [testnet text acceptance](testnet-text-acceptance.md) and [Alchemy RPC acceptance](alchemy-rpc-acceptance.md) for current behavior and evidence.
+
 ## Identity and custody
 
 Each verified identity gets a deterministic internal account ID and one server-derived APP wallet:
@@ -40,10 +42,10 @@ Mainnet (`143`) x402 API payments are USDC EIP-3009 authorizations, with the exi
 2. Initialize the new auth and operation schemas with `npm run auth:init -w app` in the intended environment. This command creates only application tables; it is not run during build or login. No live database migration was executed during development. Arrange retention/cleanup of expired challenge/session rows as an operational task.
 3. In Privy Dashboard, choose the app, enable the desired identity login methods, and add the exact allowed origins. Set matching `PRIVY_APP_ID` and `VITE_PRIVY_APP_ID`; copy the **public ES256 verification PEM** to server-only `PRIVY_VERIFICATION_KEY`. No Privy app secret is needed for local token verification. Embedded-wallet creation is off. Changing the Privy app ID changes the identity namespace.
 4. Set matching `MERA_RP_ID` and `VITE_MERA_RP_ID` to the permanent hostname, without scheme, port or path. Use HTTPS and a PRF-compatible browser/authenticator. Development should have a separate RP/environment. Do not change RP or derivation contexts after users enroll.
-5. In Alchemy Dashboard, enable Monad mainnet and testnet RPC and copy their HTTPS URLs into server-only `ALCHEMY_MONAD_MAINNET_RPC_URL` and `ALCHEMY_MONAD_TESTNET_RPC_URL`. Formats are `https://monad-mainnet.g.alchemy.com/v2/<api-key>` and `https://monad-testnet.g.alchemy.com/v2/<api-key>`. Do not expose them with a `VITE_` prefix. The app rejects missing, wrong-network or non-Alchemy endpoints.
+5. Enable Monad **testnet only** in Alchemy and configure server-only `ALCHEMY_MONAD_TESTNET_RPC_URL` with `https://monad-testnet.g.alchemy.com/v2/<api-key>`. Do not expose it with a `VITE_` prefix. The app rejects missing, wrong-network or non-Alchemy endpoints. Chain 143 RPC is disabled even if a mainnet variable exists; no mainnet configuration is required for this testnet acceptance.
 6. Keep existing media/AI settings. Optional `MINIMAX_CN_API_KEY` enables platform-paid fallback for unpaid chat/image failures unless `AIM_TEMP_MINIMAX_FALLBACK=false`; this does not charge user USDC. Submitted/settled/uncertain payments never trigger fallback.
 
-Browser reads go through a bounded read-only `/api/rpc` proxy. Server reads/writes, x402 balance checks, explicit 7702 initialization and MCP chain reads use Alchemy directly. Pimlico remains the MCP bundler; changing RPC does not install an Alchemy bundler or Paymaster. Foundry and maintenance scripts use the testnet Alchemy environment variable too. No default public RPC is retained for app traffic.
+Browser reads go through the bounded read-only `/api/rpc?chainId=10143` proxy. Server testnet reads/writes and MCP chain reads use Alchemy directly, verifying `eth_chainId` before each operation. Mainnet RPC, x402 spending and explicit 7702 initialization remain blocked. Pimlico remains the independent testnet MCP/legacy Passkey bundler; changing RPC does not install an Alchemy bundler or Paymaster. Foundry and maintenance scripts use the testnet Alchemy environment variable too. No default public RPC is retained for app traffic. External wallet broadcasts use that wallet's configured node after verifying chain 10143; the app never installs its read-only proxy or server API key into an external wallet. See [RPC acceptance](alchemy-rpc-acceptance.md).
 
 This branch disables its own automatic Vercel Git deployment in both Vercel config roots. No deployment, service registration, credentials creation or real chain transaction is part of this delivery. Bounty rules were not supplied; Alchemy integration is not a claim of bounty qualification.
 
