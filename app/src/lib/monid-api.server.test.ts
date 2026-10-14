@@ -102,12 +102,33 @@ it("reports failed or missing-output runs without another paid submission", asyn
     assert.equal(paid, 1);
   }
 });
+it("preserves settlement evidence when the paid upstream provider fails", async () => {
+  const result = await postMonidApi(owner, BLOCKRUN_CHAT_URL, {}, signal(), {
+    pay: async () =>
+      Response.json(
+        {
+          status: "COMPLETED",
+          providerResponse: { httpStatus: 503, body: { error: "unavailable" } },
+        },
+        { headers: { "PAYMENT-RESPONSE": "receipt" } },
+      ),
+    retrieve: async () => {
+      throw Error("unexpected poll");
+    },
+  });
+  assert.equal(result.status, 503);
+  assert.equal(result.headers.get("PAYMENT-RESPONSE"), "receipt");
+});
 it("routes Grok Imagine 2.0 and optional MiniMax character-reference images through Monid", async () => {
-  const { imageEditRequest, imageGenerateRequest, decodeGeneratedImages } = await import("./ai-provider.ts");
+  const { imageEditRequest, imageGenerateRequest, decodeGeneratedImages } =
+    await import("./ai-provider.ts");
   const { BLOCKRUN_IMAGE_URL, MONAD_IMAGE_MODEL } = await import("./monad-ai.ts");
   const request = { prompt: "idol portrait", contentRating: "SFW" as const, count: 1 };
-  assert.throws(() => imageEditRequest({kind:"x402",apiKey:""},request,"data:image/jpeg;base64,AQ=="), /does not support reference/);
-  const image = imageGenerateRequest({kind:"x402",apiKey:""},request);
+  assert.throws(
+    () => imageEditRequest({ kind: "x402", apiKey: "" }, request, "data:image/jpeg;base64,AQ=="),
+    /does not support reference/,
+  );
+  const image = imageGenerateRequest({ kind: "x402", apiKey: "" }, request);
   assert.equal(image.url, BLOCKRUN_IMAGE_URL);
   assert.equal(image.body.model, MONAD_IMAGE_MODEL);
   assert.equal(image.body.response_format, "b64_json");

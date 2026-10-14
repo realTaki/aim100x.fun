@@ -14,6 +14,13 @@ const sellers: Record<string, Address> = {
   [ELEVENLABS_STT_URL]: "0xDEFaDa13F790cf39168691B391Cfa0b6f1f5c267",
   [MONID_RUN_URL]: "0x9D3d9410Be95fa1d230734B961997427fc61D837",
 };
+/** Transport/quote failures known to precede any payment authorization. */
+export class UnpaidAiRequestError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "API request failed before payment", { cause });
+    this.name = "UnpaidAiRequestError";
+  }
+}
 export function validPaymentOffer(url: string, offer: PaymentRequirements): boolean {
   return (
     Boolean(sellers[url]) &&
@@ -81,7 +88,7 @@ export async function paidFetch(
       throw new Error(
         "API payment was submitted; confirmation is unavailable. Check wallet transactions before retrying.",
       );
-    throw error;
+    throw new UnpaidAiRequestError(error);
   }
   if (signed) {
     const header = response.headers.get("PAYMENT-RESPONSE");

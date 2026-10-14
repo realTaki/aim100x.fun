@@ -61,5 +61,9 @@ export async function postMonidApi(
   const output = result.providerResponse?.body ?? result.output;
   if (output === undefined)
     throw new Error(`API run ${runId} has no output; do not resubmit payment`);
-  return Response.json(output, { status: providerStatus === 204 ? 200 : providerStatus });
+  const settlement = response.headers.get("PAYMENT-RESPONSE");
+  return Response.json(output, {
+    status: providerStatus === 204 ? 200 : providerStatus,
+    ...(settlement ? { headers: { "PAYMENT-RESPONSE": settlement } } : {}),
+  });
 }

@@ -84,17 +84,30 @@ export async function postChatCompletions(
 ): Promise<Response> {
   if (backend.kind === "x402") {
     const { postPaidAi } = await import("./ai-user.server");
-    const response = await postPaidAi(
-      backend,
-      BLOCKRUN_CHAT_URL,
-      monadChatPayload(
-        {
-          ...body,
-          ...(backend.promptCacheKey ? { prompt_cache_key: backend.promptCacheKey } : {}),
-        },
-        env("X402_CHAT_MODEL") ?? MONAD_CHAT_MODEL,
-      ),
-      init,
+    const { withTemporaryMiniMaxFallback } = await import("./minimax-fallback.server.ts");
+    const response = await withTemporaryMiniMaxFallback(
+      (signal) =>
+        postPaidAi(
+          backend,
+          BLOCKRUN_CHAT_URL,
+          monadChatPayload(
+            {
+              ...body,
+              ...(backend.promptCacheKey ? { prompt_cache_key: backend.promptCacheKey } : {}),
+            },
+            env("X402_CHAT_MODEL") ?? MONAD_CHAT_MODEL,
+          ),
+          { ...init, signal },
+        ),
+      (fallback, signal) => postChatCompletions(fallback, body, { ...init, signal }),
+      {
+        purpose: "chat",
+        signal: init?.signal,
+        usable: (body) =>
+          isAiChatBodyOk(body) &&
+          Array.isArray((body as { choices?: unknown })?.choices) &&
+          (body as { choices: unknown[] }).choices.length > 0,
+      },
     );
     await response
       .clone()
@@ -281,15 +294,17 @@ export function decodeGeneratedImages(json: unknown): { b64?: string; url?: stri
 export async function postAiRequest(
   backend: AiBackend,
   request: { url: string; body: Record<string, unknown> },
+  init?: { signal?: AbortSignal },
 ) {
   if (backend.kind === "x402") {
     const { postPaidAi } = await import("./ai-user.server");
-    return postPaidAi(backend, request.url, request.body);
+    return postPaidAi(backend, request.url, request.body, init);
   }
   return fetch(request.url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${backend.apiKey}` },
     body: JSON.stringify(request.body),
+    signal: init?.signal,
   });
 }
 
@@ -324,7 +339,7 @@ export function imageMime(bytes: Buffer): string {
     return "image/webp";
   throw new Error("Provider returned an unsupported image format");
 }
-/** Exactly one charged submission. Use the reference-capable MiniMax route for anchored jobs. */
+/** At most one user-paid submission. Use MiniMax for anchored jobs. */
 export async function generatePaidImages(backend: AiBackend, request: ImageGenerationRequest) {
   const selected =
     request.referenceImage && !backend.imageModel
@@ -332,7 +347,19 @@ export async function generatePaidImages(backend: AiBackend, request: ImageGener
       : backend;
   if (request.referenceImage && selected.imageModel !== "image-01")
     throw new Error("Reference images require image-01 on Monad Hub");
-  const res = await postAiRequest(selected, imageGenerateRequest(selected, request));
+  const primary = (signal: AbortSignal) =>
+    postAiRequest(selected, imageGenerateRequest(selected, request), { signal });
+  const res =
+    backend.kind === "x402"
+      ? await (
+          await import("./minimax-fallback.server.ts")
+        ).withTemporaryMiniMaxFallback(
+          primary,
+          (fallback, signal) =>
+            postAiRequest(fallback, imageGenerateRequest(fallback, request), { signal }),
+          { purpose: "image", usable: (body) => decodeGeneratedImages(body).length > 0 },
+        )
+      : await primary(AbortSignal.timeout(45_000));
   if (!res.ok) throw new Error(`Image generation failed (${res.status})`);
   const images = [];
   for (const image of decodeGeneratedImages(await res.json())) {
