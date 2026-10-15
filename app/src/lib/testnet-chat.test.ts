@@ -294,7 +294,8 @@ it("testnet text chat stays on MiniMax CN and does not select x402 Kimi", () => 
 });
 it("gas policy caps sponsorship and derives a stable wallet-scoped funding ID", () => {
   assert.equal(gasBudget(1n).gas, 300_000n);
-  assert.throws(() => gasBudget(200_000_000_000n));
+  assert.equal(gasBudget(200_000_000_000n).maxFeePerGas, 200_000_000_000n);
+  assert.throws(() => gasBudget(200_000_000_001n), /sponsorship limit/);
   assert.equal(sponsorshipId(wallet, id, 0), sponsorshipId(wallet, id, 0));
   assert.notEqual(sponsorshipId(wallet, id, 0), sponsorshipId(recipient, id, 0));
 });
@@ -462,5 +463,6 @@ it("a failed durable receipt write prevents model execution", async () => {
 it("NFT gas funding supports a bounded product budget and refuses an invalid budget", () => {
   assert.equal(gasBudget(1n, 2_000_000n).gas, 2_000_000n);
   for (const gas of [0n, 20_999n, 2_000_001n]) assert.throws(() => gasBudget(1n, gas), /gas limit/);
-  assert.throws(() => gasBudget(200_000_000_000n, 2_000_000n), /sponsorship limit/);
+  assert.equal(gasBudget(100_000_000_000n, 2_000_000n).maxFeePerGas, 200_000_000_000n);
+  assert.throws(() => gasBudget(200_000_000_001n, 2_000_000n), /sponsorship limit/);
 });

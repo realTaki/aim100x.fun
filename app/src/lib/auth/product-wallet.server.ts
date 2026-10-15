@@ -1,11 +1,17 @@
-import { operationStore } from "./operation-store.server.ts";
-import { sponsorTestnetGas, MAX_PRODUCT_GAS } from "./testnet-gas.server.ts";
+import { initializeProductSchema, operationStore } from "./operation-store.server.ts";
+import {
+  sponsorTestnetGas,
+  productGasLimit,
+  MAX_PRODUCT_GAS,
+  MAX_SPONSORED_FEE,
+  SPONSORED_GAS,
+} from "./testnet-gas.server.ts";
+import { waitForReserveDelay } from "./monad-reserve-delay.ts";
 import { runProductOperation } from "./operation-runner.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash } from "node:crypto";
-import { createPublicClient, createWalletClient, erc20Abi, http, keccak256, type Hex } from "viem";
+import { createPublicClient, createWalletClient, erc20Abi, keccak256, type Hex } from "viem";
 import { z } from "zod";
-import { mediaSql } from "../media-storage.server.ts";
 import { boundAppWallet } from "./app-wallet.server.ts";
 import { testnetWalletChain } from "./app-wallet-chain.ts";
 import {
@@ -18,11 +24,7 @@ import { prepareImagePayment } from "../chat-image-payment.server.ts";
 import { actionSchema, planProductAction, type ProductCall } from "./product-policy.server.ts";
 import type { SessionUser } from "./wallet-auth.server.ts";
 import { authStore } from "./account-store.server.ts";
-export async function initializeProductSchema() {
-  const sql = mediaSql();
-  await sql`CREATE TABLE IF NOT EXISTS aim_wallet_requests (account_id text NOT NULL, request_id uuid NOT NULL, body_hash text NOT NULL, status text NOT NULL, hashes jsonb NOT NULL DEFAULT '[]', expected integer NOT NULL, PRIMARY KEY(account_id,request_id))`;
-  await sql`CREATE TABLE IF NOT EXISTS aim_wallet_locks (account_id text PRIMARY KEY, request_id uuid NOT NULL)`;
-}
+export { initializeProductSchema };
 const inputSchema = z.object({ requestId: z.string().uuid(), action: actionSchema }).strict();
 /** Only server-constructed allowlisted testnet operations. No arbitrary calldata or delegation. */
 export async function executeProductRequest(user: SessionUser, raw: unknown) {
@@ -93,6 +95,7 @@ export async function executeTestnetCalls(
     store?: import("./operation-runner.ts").OperationStore;
     active?: typeof authStore.active;
     sponsor?: typeof sponsorTestnetGas;
+    afterSponsor?: typeof waitForReserveDelay;
   } = {},
 ) {
   const account = boundAppWallet(user).account;
@@ -125,23 +128,35 @@ export async function executeTestnetCalls(
         // Bounded gas for the allowlisted faucet, ERC20 transfer/approval and subscription.
         // Sponsor funds gas before APP signing; users need no testnet MON for these flows.
         await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
-        const gas = await (ports.sponsor ?? sponsorTestnetGas)(
-          account.address,
-          requestId,
-          index++,
-          MAX_PRODUCT_GAS,
-        );
+        let gasLimit: bigint;
+        try {
+          gasLimit = productGasLimit(
+            await reader.estimateGas({ account: account.address, ...call }),
+          );
+        } catch {
+          gasLimit = SPONSORED_GAS;
+        }
+        const sponsorshipIndex = index++;
+        const gas = ports.sponsor
+          ? await ports.sponsor(account.address, requestId, sponsorshipIndex, gasLimit)
+          : await sponsorTestnetGas(account.address, requestId, sponsorshipIndex, gasLimit);
+        // Consensus only sees balances from block n-k. Spending MON that just
+        // arrived is excluded, then dropped from the local mempool.
+        if (ports.afterSponsor) await ports.afterSponsor(() => reader.getBlockNumber());
+        else if (!ports.sponsor) await waitForReserveDelay(() => reader.getBlockNumber());
         const request = await writer.prepareTransactionRequest({
           ...call,
           ...gas,
+          gas: gasLimit,
           type: "eip1559",
           account,
           chain: testnetWalletChain,
         });
         if (
           request.chainId !== 10143 ||
-          request.gas > 2_000_000n ||
-          request.maxFeePerGas > 200_000_000_000n
+          request.gas > MAX_PRODUCT_GAS ||
+          request.maxFeePerGas > MAX_SPONSORED_FEE ||
+          !request.maxPriorityFeePerGas
         )
           throw new Error("Transaction exceeds gas policy");
         const signed = await account.signTransaction(request),

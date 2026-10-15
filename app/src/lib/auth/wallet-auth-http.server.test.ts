@@ -88,3 +88,40 @@ it('rejects preview and insecure Mera challenges before creating a challenge rec
   assert.equal((await handleWalletAuthRequest(request,deps)).status,503);
  }
 });
+it('returns explicit challenge config errors and logs the final catch',async()=>{
+ const logs:string[]=[];
+ const original=console.error;
+ console.error=(...args:unknown[])=>{logs.push(args.map(String).join(' '));};
+ try{
+  delete process.env.WALLET_MASTER_SECRET;
+  const secretRes=await handleWalletAuthRequest(req('wallet/challenge',{provider:'privy'}),dependencies());
+  assert.equal(secretRes.status,503);
+  assert.match((await secretRes.json()).error,/WALLET_MASTER_SECRET/);
+  process.env.WALLET_MASTER_SECRET='33'.repeat(32);
+
+  const deps=dependencies();
+  deps.store!.challenge=async()=>{throw new Error('AIM100X_DATABASE_URL is required for the media library');};
+  const dbRes=await handleWalletAuthRequest(req('wallet/challenge',{provider:'wallet',address:signer.address}),deps);
+  assert.equal(dbRes.status,503);
+  assert.match((await dbRes.json()).error,/AIM100X_DATABASE_URL/);
+
+  deps.store!.challenge=async()=>{throw Object.assign(new Error('relation "aim_auth_challenges" does not exist'),{code:'42P01'});};
+  const tableRes=await handleWalletAuthRequest(req('wallet/challenge',{provider:'privy'}),deps);
+  assert.equal(tableRes.status,503);
+  assert.match((await tableRes.json()).error,/auth:init/);
+  assert.ok(logs.some((line)=>line.includes('[wallet-auth]')&&!/postgres:\/\//i.test(line)));
+
+  const prepareDeps=dependencies();
+  const logged=await login(prepareDeps);
+  logs.length=0;
+  assert.equal((await handleWalletAuthRequest(req('wallet/prepare',{},logged.cookie),prepareDeps)).status,503);
+  assert.ok(logs.some((line)=>line.includes('[wallet-auth]')&&/Mainnet spending/.test(line)));
+ }finally{console.error=original;}
+});
+it('auth init script creates the login challenge table',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const schema=readFileSync(new URL('./account-store.server.ts',import.meta.url),'utf8');
+ const init=readFileSync(new URL('../../../scripts/initialize-auth-storage.ts',import.meta.url),'utf8');
+ assert.match(schema,/CREATE TABLE IF NOT EXISTS aim_auth_challenges/);
+ assert.match(init,/initializeAuthSchema/);
+});

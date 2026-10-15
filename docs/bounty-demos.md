@@ -16,14 +16,20 @@ Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.co
 
 ## Alchemy
 
-Video: _coming soon_
+Video: [alchemy-bounty-demo.mp4](./alchemy-bounty-demo.mp4) (1:27, English narration)
+
+Narration script: [alchemy-bounty-demo-narration.md](./alchemy-bounty-demo-narration.md)
 
 ## Mera: One Passkey, Many Keys
 
-Video: [mera-passkey-probe.mp4](./mera-passkey-probe.mp4)
+Video: [mera-bounty-demo.mp4](./mera-bounty-demo.mp4) (1:36, English narration)
 
-Narration: [mera-passkey-probe-narration.md](./mera-passkey-probe-narration.md)
+Narration script: [mera-bounty-demo-narration.md](./mera-bounty-demo-narration.md)
 
-Live https://aim100x.fun/login. Platform authenticator is not available (`PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` → `false`). Chrome sheet: **Your device can't be used with this site.** A CDP virtual authenticator (`ctap2` / `ctap2_1`) **can** create a WebAuthn credential, but `getClientExtensionResults().prf` is `{ enabled: false }`. **Create Mera passkey** then shows: **Mera sign-in failed. Use a PRF-compatible passkey and the original RP domain.** No derived Mera account. A bounty demo of Mera key derivation is not feasible in this cloud-agent browser.
+This is a code walkthrough of PRF, RP domain, and the sign-in path.
+
+Live probe: [mera-passkey-probe.mp4](./mera-passkey-probe.mp4) · [mera-passkey-probe-narration.md](./mera-passkey-probe-narration.md)
+
+Live https://aim100x.fun/login. Platform authenticator is not available (`PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` → `false`). Chrome sheet: **Your device can't be used with this site.** A CDP virtual authenticator (`ctap2` / `ctap2_1`) **can** create a WebAuthn credential, but `getClientExtensionResults().prf` is `{ enabled: false }`. **Create Mera passkey** then shows: **Mera sign-in failed. Use a PRF-compatible passkey and the original RP domain.** No derived Mera account. A live PRF passkey ceremony is not feasible in this cloud-agent browser.
 
 Live product: https://aim100x.fun

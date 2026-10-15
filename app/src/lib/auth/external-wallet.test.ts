@@ -78,7 +78,8 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
   const { deriveIdentityWallet } = await import("./app-wallet.server.ts");
   const { executeTestnetCalls } = await import("./product-wallet.server.ts");
   const { parseTransaction, recoverTransactionAddress, keccak256 } = await import("viem");
-  const { gasBudget } = await import("./testnet-gas.server.ts");
+  const { gasBudget, productGasLimit } = await import("./testnet-gas.server.ts");
+  const estimatedGas = 200_000n;
   const keyBefore = process.env.WALLET_MASTER_SECRET,
     rpcBefore = process.env.ALCHEMY_MONAD_TESTNET_RPC_URL;
   process.env.WALLET_MASTER_SECRET = "11".repeat(32);
@@ -105,7 +106,8 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
     else if (rpc.method === "eth_call") {
       assert.equal(rpc.params[0].from.toLowerCase(), expected.toLowerCase());
       result = "0x";
-    } else if (rpc.method === "eth_getTransactionCount") result = `0x${nonce.toString(16)}`;
+    } else if (rpc.method === "eth_estimateGas") result = `0x${estimatedGas.toString(16)}`;
+    else if (rpc.method === "eth_getTransactionCount") result = `0x${nonce.toString(16)}`;
     else if (rpc.method === "eth_sendRawTransaction") {
       assert.equal(funded, true, "platform must fund before APP broadcast");
       funded = false;
@@ -116,7 +118,8 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
         expected.toLowerCase(),
       );
       assert.equal(tx.chainId, 10143);
-      assert.equal(tx.gas, 2_000_000n);
+      assert.equal(tx.gas, productGasLimit(estimatedGas));
+      assert.ok((tx.maxPriorityFeePerGas ?? 0n) > 0n);
       assert.equal(tx.nonce, nonce++);
       result = keccak256(bytes);
       transactions.set(result as string, { from: expected, to: wallet, index: sent++ });
@@ -181,7 +184,7 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
       sponsor: async (address: `0x${string}`, _id: string, index: number, gas?: bigint) => {
         assert.equal(address, expected);
         assert.equal(index, sponsorships++);
-        assert.equal(gas, 2_000_000n);
+        assert.equal(gas, productGasLimit(estimatedGas));
         funded = true;
         return gasBudget(1n, gas);
       },
