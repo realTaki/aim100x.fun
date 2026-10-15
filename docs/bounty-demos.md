@@ -12,7 +12,7 @@ Video: [privy-email-probe.mp4](./privy-email-probe.mp4)
 
 Narration: [privy-email-probe-narration.md](./privy-email-probe-narration.md)
 
-Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy `onComplete` ran; `POST /api/auth/wallet/challenge` `{ provider: "privy" }` returned **503** `Operation unavailable. Check configuration or transaction status before retrying.` A same-origin `{ provider: "wallet" }` challenge also returns that generic 503, so this is not a missing `PRIVY_APP_ID` / login-disabled branch. UI: **Privy sign-in failed. Check configuration or sign in again.** Faucet / subscribe / chat / quick-reply / image did not start. One-time codes are not recorded in the repo.
+Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy passwordless authenticate and `onComplete` succeeded. `POST /api/auth/wallet/challenge` `{ provider: "privy" }` now returns **200**. `POST /api/auth/wallet/verify` returns **401** `Login proof invalid, expired, replayed, or account unavailable` (generic inner catch; not a missing challenge cookie / not the 503 store-init path). UI: **Privy sign-in failed. Check configuration or sign in again.** Faucet / subscribe / chat / quick-reply / image did not start. One-time codes are not recorded in the repo.
 
 ## Alchemy
 
