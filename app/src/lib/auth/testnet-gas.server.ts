@@ -30,8 +30,19 @@ async function reserveGas(wallet: Address, requestId: string, amount: bigint) {
 export const SPONSORED_GAS = 300_000n;
 export const MAX_PRODUCT_GAS = 2_000_000n;
 export const MAX_SPONSORED_FEE = 200_000_000_000n;
+/** Monad `eth_maxPriorityFeePerGas` is hardcoded at 2 gwei; 0-tip txs are dropped. */
+export const MONAD_PRIORITY_FEE = 2_000_000_000n;
+/** Category Labs 7.5% gas-limit margin. Monad charges the limit, not gas used. */
+export const MONAD_GAS_LIMIT_MARGIN_BPS = 10_750n;
 export function sponsorAccount() {
   return privateKeyToAccount(readPaymasterSigner());
+}
+export function productGasLimit(estimated: bigint, cap = MAX_PRODUCT_GAS) {
+  const base = estimated < 21_000n ? 21_000n : estimated;
+  const buffered = (base * MONAD_GAS_LIMIT_MARGIN_BPS + 9_999n) / 10_000n;
+  const gas = buffered > cap ? cap : buffered;
+  if (gas < 21_000n || gas > cap) throw new Error("Invalid sponsored gas limit");
+  return gas;
 }
 export function gasBudget(baseFee: bigint, gas = SPONSORED_GAS) {
   if (gas < 21_000n || gas > MAX_PRODUCT_GAS) throw new Error("Invalid sponsored gas limit");
@@ -40,7 +51,9 @@ export function gasBudget(baseFee: bigint, gas = SPONSORED_GAS) {
   const buffered = baseFee * 2n + 1_000_000_000n;
   const maxFeePerGas = buffered > MAX_SPONSORED_FEE ? MAX_SPONSORED_FEE : buffered;
   if (maxFeePerGas < baseFee) throw new Error("Testnet gas exceeds sponsorship limit");
-  return { gas, maxFeePerGas, maxPriorityFeePerGas: 0n };
+  const maxPriorityFeePerGas =
+    MONAD_PRIORITY_FEE < maxFeePerGas ? MONAD_PRIORITY_FEE : maxFeePerGas;
+  return { gas, maxFeePerGas, maxPriorityFeePerGas };
 }
 export function sponsorshipId(wallet: Address, requestId: string, index: number) {
   const h = createHash("sha256")
@@ -139,7 +152,7 @@ export async function sponsorTestnetGas(
           type: "eip1559",
           gas: 21_000n,
           maxFeePerGas: budget.maxFeePerGas,
-          maxPriorityFeePerGas: 0n,
+          maxPriorityFeePerGas: budget.maxPriorityFeePerGas,
         });
         if (request.chainId !== 10143 || value > budget.gas * MAX_SPONSORED_FEE)
           throw new Error("Invalid sponsorship");
