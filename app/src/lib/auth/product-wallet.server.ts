@@ -11,7 +11,11 @@ import {
   SPONSORED_PRE_VERIFICATION_GAS,
   sponsorAccount,
 } from "./testnet-gas.server.ts";
-import { runProductOperation } from "./operation-runner.ts";
+import {
+  runProductOperation,
+  OperationPreparationError,
+  type OperationFailureStage,
+} from "./operation-runner.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash } from "node:crypto";
 import { createPublicClient, createWalletClient, erc20Abi, keccak256, type Hex } from "viem";
@@ -139,74 +143,84 @@ export async function executeTestnetCalls(
       ),
     {
       async sign(call) {
-        if (!(await (ports.active ?? authStore.active)(user.sessionId, user.id)))
-          throw new Error("Session revoked");
-        await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
-        await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
-        let innerGas: bigint;
+        let stage: OperationFailureStage = "session";
         try {
-          innerGas = productGasLimit(
-            await reader.estimateGas({ account: account.address, ...call }),
+          if (!(await (ports.active ?? authStore.active)(user.sessionId, user.id)))
+            throw new Error("Session revoked");
+          stage = "simulation";
+          await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
+          stage = "delegation";
+          await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
+          stage = "signing";
+          let innerGas: bigint;
+          try {
+            innerGas = productGasLimit(
+              await reader.estimateGas({ account: account.address, ...call }),
+            );
+          } catch {
+            innerGas = SPONSORED_GAS;
+          }
+          const outerGas = sponsoredOuterGas(innerGas);
+          const baseFee = (await reader.getBlock()).baseFeePerGas ?? 0n;
+          const budget = gasBudget(baseFee, outerGas);
+          const sponsorshipIndex = index++;
+          stage = "gas-reservation";
+          await (ports.reserve ?? reserveSponsoredGas)(
+            account.address,
+            requestId,
+            sponsorshipIndex,
+            budget.gas * budget.maxFeePerGas,
           );
+          stage = "signing";
+          const nonce = await reader.readContract({
+            address: APP_ENTRY_POINT,
+            abi: ENTRY_POINT_ABI,
+            functionName: "getNonce",
+            args: [account.address, 0n],
+          });
+          const unsigned = {
+            sender: account.address,
+            nonce,
+            initCode: "0x" as Hex,
+            callData: encodeAccountExecute(call),
+            accountGasLimits: packUint128Pair(SPONSORED_VERIFICATION_GAS, innerGas),
+            preVerificationGas: SPONSORED_PRE_VERIFICATION_GAS,
+            // Zero UserOp fees: the APP wallet never pays native gas. The sponsor's
+            // outer handleOps transaction pays Monad fees under the daily allowance.
+            gasFees: packUint128Pair(0n, 0n),
+            paymasterAndData: "0x" as Hex,
+          };
+          const userOp: PackedUserOperation = {
+            ...unsigned,
+            signature: await account.signTypedData(userOperationTypedData(unsigned)),
+          };
+          const request = await writer.prepareTransactionRequest({
+            account: sponsor,
+            chain: testnetWalletChain,
+            type: "eip1559",
+            to: APP_ENTRY_POINT,
+            data: encodeHandleOps([userOp], sponsor.address),
+            value: 0n,
+            gas: budget.gas,
+            maxFeePerGas: budget.maxFeePerGas,
+            maxPriorityFeePerGas: budget.maxPriorityFeePerGas,
+          });
+          if (
+            request.chainId !== 10143 ||
+            request.to?.toLowerCase() !== APP_ENTRY_POINT.toLowerCase() ||
+            (request.value ?? 0n) !== 0n ||
+            request.gas > budget.gas ||
+            request.maxFeePerGas > MAX_SPONSORED_FEE ||
+            !request.maxPriorityFeePerGas
+          )
+            throw new Error("Transaction exceeds gas policy");
+          const signed = await sponsor.signTransaction(request),
+            hash = keccak256(signed);
+          signedRequests.set(hash, signed);
+          return hash;
         } catch {
-          innerGas = SPONSORED_GAS;
+          throw new OperationPreparationError(stage);
         }
-        const outerGas = sponsoredOuterGas(innerGas);
-        const baseFee = (await reader.getBlock()).baseFeePerGas ?? 0n;
-        const budget = gasBudget(baseFee, outerGas);
-        const sponsorshipIndex = index++;
-        await (ports.reserve ?? reserveSponsoredGas)(
-          account.address,
-          requestId,
-          sponsorshipIndex,
-          budget.gas * budget.maxFeePerGas,
-        );
-        const nonce = await reader.readContract({
-          address: APP_ENTRY_POINT,
-          abi: ENTRY_POINT_ABI,
-          functionName: "getNonce",
-          args: [account.address, 0n],
-        });
-        const unsigned = {
-          sender: account.address,
-          nonce,
-          initCode: "0x" as Hex,
-          callData: encodeAccountExecute(call),
-          accountGasLimits: packUint128Pair(SPONSORED_VERIFICATION_GAS, innerGas),
-          preVerificationGas: SPONSORED_PRE_VERIFICATION_GAS,
-          // Zero UserOp fees: the APP wallet never pays native gas. The sponsor's
-          // outer handleOps transaction pays Monad fees under the daily allowance.
-          gasFees: packUint128Pair(0n, 0n),
-          paymasterAndData: "0x" as Hex,
-        };
-        const userOp: PackedUserOperation = {
-          ...unsigned,
-          signature: await account.signTypedData(userOperationTypedData(unsigned)),
-        };
-        const request = await writer.prepareTransactionRequest({
-          account: sponsor,
-          chain: testnetWalletChain,
-          type: "eip1559",
-          to: APP_ENTRY_POINT,
-          data: encodeHandleOps([userOp], sponsor.address),
-          value: 0n,
-          gas: budget.gas,
-          maxFeePerGas: budget.maxFeePerGas,
-          maxPriorityFeePerGas: budget.maxPriorityFeePerGas,
-        });
-        if (
-          request.chainId !== 10143 ||
-          request.to?.toLowerCase() !== APP_ENTRY_POINT.toLowerCase() ||
-          (request.value ?? 0n) !== 0n ||
-          request.gas > budget.gas ||
-          request.maxFeePerGas > MAX_SPONSORED_FEE ||
-          !request.maxPriorityFeePerGas
-        )
-          throw new Error("Transaction exceeds gas policy");
-        const signed = await sponsor.signTransaction(request),
-          hash = keccak256(signed);
-        signedRequests.set(hash, signed);
-        return hash;
       },
       async send(hash) {
         const sent = await writer.sendRawTransaction({

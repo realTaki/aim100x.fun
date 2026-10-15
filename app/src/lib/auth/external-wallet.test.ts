@@ -106,6 +106,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
     epNonce = 0,
     sent = 0;
   const transactions = new Map<string, { from: string; to: string; index: number }>();
+  let rejectSimulation = false;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const rpc = JSON.parse(String(init.body));
     let result: unknown;
@@ -115,6 +116,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       if (to === APP_ENTRY_POINT.toLowerCase())
         result = `0x${epNonce.toString(16).padStart(64, "0")}`;
       else {
+        if (rejectSimulation) return Response.json({ jsonrpc: "2.0", id: 1, error: { code: 3, message: "private-provider-detail-must-not-escape" } });
         if (rpc.params[0].from)
           assert.equal(rpc.params[0].from.toLowerCase(), expected.toLowerCase());
         result = "0x";
@@ -241,6 +243,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       active: async () => false,
     });
     assert.equal(revoked.status, "failed");
+    assert.equal(revoked.failureStage, "session");
     assert.equal(sent, before);
     assert.equal(sponsorships, 2);
     record = null;
@@ -251,6 +254,16 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       },
     });
     assert.equal(unfunded.status, "failed");
+    assert.equal(unfunded.failureStage, "gas-reservation");
+    assert.deepEqual(unfunded.hashes, []);
+    record = null;
+    rejectSimulation = true;
+    const simulation = await executeTestnetCalls(user, "simulation", "body", plan, ports);
+    rejectSimulation = false;
+    assert.equal(simulation.status, "failed");
+    assert.equal(simulation.failureStage, "simulation");
+    assert.deepEqual(simulation.hashes, []);
+    assert.ok(!JSON.stringify(simulation).includes("private-provider-detail"));
     assert.equal(sent, before);
     await assert.rejects(
       executeTestnetCalls({ ...user, walletAddress: wallet }, "wrong", "body", plan, ports),

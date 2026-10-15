@@ -1,7 +1,18 @@
+/** Fixed labels only: never expose provider errors, signed bytes or secret-bearing URLs. */
+export type OperationFailureStage =
+  "session" | "simulation" | "delegation" | "gas-reservation" | "signing";
+export class OperationPreparationError extends Error {
+  readonly stage: OperationFailureStage;
+  constructor(stage: OperationFailureStage) {
+    super("Operation preparation failed");
+    this.stage = stage;
+  }
+}
 export type OperationResult = {
   status: "pending" | "confirmed" | "failed";
   hashes: `0x${string}`[];
   reason?: "verification-required";
+  failureStage?: OperationFailureStage;
   receipts?: import("./stale-operation.ts").ReceiptStatus[];
 };
 export type OperationStore = {
@@ -50,12 +61,13 @@ export async function runProductOperation<T>(
     await store.status("confirmed");
     await store.release();
     return { status: "confirmed", hashes };
-  } catch {
+  } catch (error) {
+    const failure = error instanceof OperationPreparationError ? { failureStage: error.stage } : {};
     if (!hashes.length) {
       if (recorded) await store.status("failed");
       await store.release();
-      return { status: "failed", hashes };
+      return { status: "failed", hashes, ...failure };
     }
-    return { status: "pending", hashes, reason: "verification-required" };
+    return { status: "pending", hashes, reason: "verification-required", ...failure };
   }
 }
