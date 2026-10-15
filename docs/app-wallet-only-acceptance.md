@@ -24,7 +24,7 @@ APP keys/mnemonics do not return to the client. No cross-provider merging occurs
 | NFT sale listing / price changes | APP wallet; current owner, fresh session | Exact collection methods only |
 | Agent role grants/revocation | APP wallet; fresh session | Exact setAgent/removeAgent, no arbitrary approval/calldata |
 | TBA withdrawal | Current owner's APP wallet, fresh session | TBA executes LUSD transfer only to that APP wallet |
-| Native gas prefunding | Platform PAYMASTER_SIGNER | Funds the APP wallet before its business signature; never substitutes user MON |
+| Native gas sponsorship | Platform PAYMASTER_SIGNER | Submits EIP-7702 handleOps and pays outer gas; never transfers MON to the APP wallet |
 | Direct NFT transfer / ERC-721 approve / general transfer | No product UI/server action implemented | Rejected by the existing typed action schema; not added here |
 | Old external/Passkey executor | Explicitly disabled | No key, provider, RPC or UserOperation access |
 | MCP on-chain pricing/sale / Agent executor | Explicitly disabled | No authenticated APP-account authorization exists for MCP chain writes yet |
@@ -46,11 +46,12 @@ fallbacks in display/manager helpers, and incomplete gas sponsorship.
   /docs expose the unavailability. Read/content permission checks are retained.
 - Product owner helpers accept only the explicit authenticated APP wallet; missing
   APP address fails closed, including dev fallback and address-like profile text.
-- Every supported business call now requires platform gas funding. The prior
-  faucet/subscription-only condition and user-MON fallback were removed. Per-call
-  gas is capped at 2,000,000, fee at 200 gwei, and existing daily reservation limit
-  at 1 testnet MON per APP wallet per UTC day. These are conservative reserved
-  budgets, not actual gas spent. Exhaustion stops rather than charging user MON.
+- Every supported business call now requires EIP-7702-sponsored execution. The
+  prior faucet/subscription-only condition, user-MON fallback and MON drip to the
+  APP wallet were removed. Inner call gas is capped at 2,000,000, fee at 200 gwei,
+  and the existing daily reservation limit at 1 testnet MON of sponsor spend per
+  APP wallet per UTC day. These are conservative reserved budgets, not actual gas
+  spent. Exhaustion stops rather than charging user MON.
 - Simulation precedes funding/signing. Account lock serializes nonce preparation,
   session revocation is checked before signing, and signed hash evidence must be
   stored before broadcast. Existing ambiguous/replay handling remains.

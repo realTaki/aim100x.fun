@@ -57,5 +57,5 @@ export function productConfirmation(a: ProductAction) {
     default:
       details = a.kind;
   }
-  return `Confirm ${details} on Monad Testnet? Your server-controlled APP wallet signs. The platform funds gas within its allowance; no MON deposit is needed.`;
+  return `Confirm ${details} on Monad Testnet? Your server-controlled APP wallet signs. The platform sponsors gas via EIP-7702; no MON deposit is needed.`;
 }

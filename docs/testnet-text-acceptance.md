@@ -37,21 +37,21 @@ funded, or claimed functional by this acceptance; text replies do not invoke the
 
 ## Sponsorship and durable recovery
 
-The existing platform signer prefunds a bounded native **testnet** gas budget to
-an APP wallet before its allowlisted call. This is EOA gas prefunding, not a new
-ERC-4337 Paymaster/Bundler integration. Each sponsored call receives a full gas
-budget even if the user already has MON. Unused gas funding remains in the APP
-wallet. Scope: faucet, subscription approval/subscription, and text transfer only.
+The platform signer delegates the APP wallet with EIP-7702 and submits each
+allowlisted call as an ERC-4337 UserOperation. The APP wallet signs the UserOp;
+`PAYMASTER_SIGNER` broadcasts `handleOps` and pays native gas. No MON is transferred
+to the APP wallet. Scope: faucet, subscription, chat payments, image payments and
+other APP-wallet product calls.
 
-Limits: 300,000 gas per sponsored APP call, maximum 200 gwei fee cap; a maximum
-0.06 testnet MON transfer per call. A durable allowance caps each APP wallet at
-1 testnet MON per UTC day. Reservations occur under the shared platform-signer
-nonce lock before signing. A failed/crashed reservation may conservatively consume
-allowance; it never enlarges it. The platform signer must have sufficient testnet
-MON. Do not concurrently use its nonce outside this operation coordinator.
+Limits: inner call gas capped at 2,000,000, outer handleOps at 2,500,000, maximum
+200 gwei fee cap. A durable allowance caps each APP wallet at 1 testnet MON of
+sponsor spend per UTC day. Reservations occur before the sponsor signs handleOps.
+A failed/crashed reservation may conservatively consume allowance; it never
+enlarges it. The platform signer must have sufficient testnet MON. Do not
+concurrently use its nonce outside this operation coordinator.
 
-Both APP and sponsor transaction hashes are persisted before broadcast. A pending
-or lost receipt is looked up; its request does not automatically broadcast again.
+Sponsor handleOps hashes are persisted before broadcast. A pending or lost receipt
+is looked up; its request does not automatically broadcast again.
 A stored failure with **zero signed hashes** can explicitly retry the same ID;
 transactions with recorded hashes are retained for receipt reconciliation.
 
@@ -134,7 +134,7 @@ node --input-type=module -e 'import { build } from "vite"; await build({envDir:f
 
 Covered: zero balance/faucet/verified fee/model flow, strict forged-proof rejection,
 wrong chain/token/payer/recipient/amount/calldata, duplicate/concurrent requests,
-model retry limits, failed durable writes, gas prefunding with no user MON,
+model retry limits, failed durable writes, EIP-7702 sponsorship with no user MON,
 missing/lost gas receipts, and no mainnet/provider activity through blocked paths.
 The five old mainnet execution tests now positively assert the hard block before
 signing, balance/RPC reads or provider calls, including repeated attempts.
