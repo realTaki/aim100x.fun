@@ -1,6 +1,6 @@
 # Product / pitch demo — narration
 
-Voice: `edge-tts` `en-US-AndrewNeural` at `+8%`. Duration ~29s. Same file as the pitch video.
+Voice: `edge-tts` `en-US-AndrewNeural` at `+8%`. Duration ~33s. Same file as the pitch video.
 
 Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 
@@ -10,20 +10,21 @@ Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 | --- | --- |
 | 0:00 | Chrome opens https://aim100x.fun |
 | 0:03 | **Continue with Privy** on `/login` |
-| 0:09 | Profile `/me` — **0 LUSD**, caption **Claim faucet +100 LUSD** (PR #8 gas clamp, Production `17b375d`) |
-| 0:18 | Plaza — caption **Subscribe to Natalie100x** |
-| 0:22–0:29 | Natalie100x — **Subscribe 1 LUSD**. Still not a fan. Caption: **Chat blocked — lock held, 0 LUSD** |
+| 0:09 | Profile `/me` — **100 LUSD** after EIP-7702 faucet (Production `57c4204`) |
+| 0:16 | Natalie100x — **Subscribe 1 LUSD** |
+| 0:20 | Chat `/chat/1` — type **hey, still up?** |
+| 0:26–0:33 | Natalie replies. No quick-reply chips; no paid photo |
 
-After PR #8, `wallet/send` faucet returns `{status:"pending", hashes:[0xe423…b64d]}` and the APP wallet receives **0.4 MON** from the paymaster. `eth_getTransactionByHash` / receipt stay empty; nonce stays 0. A second send returns **503** (account lock held). Chat, quick-reply, and image are not in this cut. One-time codes are not in the repo.
+Faucet `wallet/send` `{status:"confirmed", hashes:[0x1071…27ae]}` is sponsor `handleOps` to EntryPoint `0x4337…f108` (not an APP-wallet EOA transfer). Receipt `status=0x1`. APP code is EIP-7702 delegation `0xef0100…`. Subscribe confirmed with two `handleOps` hashes. Chat deducted 1 LUSD per message and returned a model reply (`wantImage: false`, `choices: []`). One-time codes are not in the repo.
 
 ## Voice
 
 | Time | Line |
 | --- | --- |
 | 0:00 | Open aim100x.fun on Monad testnet. Unlock, then log in with Privy email. |
-| 0:06 | Verify succeeds, and the plaza opens on the APP wallet. |
-| 0:09 | After the gas-fee clamp, the paymaster funds testnet gas. |
-| 0:13 | We claim plus one hundred Lonely USD from the faucet. |
-| 0:16 | The send returns pending with a hash, but that hash never mines. Lonely USD stays at zero. |
-| 0:22 | Natalie still asks for a subscribe. |
-| 0:24 | Chat, a quick-reply bubble, and the image cannot start: the APP wallet lock is held. |
+| 0:06 | Verify succeeds. The APP wallet delegates with EIP-7702. |
+| 0:11 | The platform sponsor submits handleOps and pays gas, so this wallet never needs MON. |
+| 0:16 | We claim plus one hundred Lonely USD. The faucet receipt is on-chain. |
+| 0:21 | Subscribe to Natalie for one Lonely USD. Approve and subscribe both land. |
+| 0:26 | Chat opens. We send a paid line, and Natalie replies. |
+| 0:30 | Quick-reply chips and a photo did not come back from the model this time. |

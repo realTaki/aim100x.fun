@@ -12,7 +12,7 @@ Video: [privy-email-probe.mp4](./privy-email-probe.mp4)
 
 Narration: [privy-email-probe-narration.md](./privy-email-probe-narration.md)
 
-Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy passwordless authenticate and `onComplete` succeeded. `POST /api/auth/wallet/challenge` `{ provider: "privy" }` returns **200**. After PR #7 (JWKS verify fallback, Production `1c7321b`), `POST /api/auth/wallet/verify` succeeds and mints an APP session (`get-session` **200**, provider `privy`, APP wallet `0xc956…fd93`). Plaza opens after PIN setup. RPC reads work (`/me` shows **0 LUSD**). After PR #8 (testnet gas fee clamp, Production `17b375d` READY), `POST /api/auth/wallet/send` faucet returns `{status:"pending", hashes:[0xe423…b64d]}` and the APP wallet receives **0.4 MON** from the paymaster. `eth_getTransactionByHash` / receipt stay empty; nonce stays 0; LUSD stays 0. A same-id retry stays pending; a new requestId returns **503** (account lock held). Chat / quick-reply / image not reached. One-time codes are not recorded in the repo.
+Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. After PR #7, `wallet/verify` mints an APP session (`0xc956…fd93`). After PR #11 (EIP-7702 sponsorship, Production `57c4204`), faucet `wallet/send` returns `{status:"confirmed", hashes:[0x1071…27ae]}`: sponsor `handleOps` to EntryPoint `0x4337…f108`, receipt `0x1`, LUSD **0 → 100**. Subscribe Natalie confirmed with two `handleOps` hashes; LUSD **100 → 99**. Paid chat replies (LUSD **99 → 97**). Quick-reply chips returned empty; a photo request got `wantImage: false` (model: cannot send photos). One-time codes are not recorded in the repo.
 
 ## Alchemy
 
