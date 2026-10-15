@@ -20,6 +20,7 @@ import {
   isAiChatBodyOk,
   postChatCompletions,
   postAiRequest,
+  resolveAiBackend,
   ttsRequest,
   type MiniMaxBackend,
 } from "@/lib/ai-provider";
@@ -40,6 +41,7 @@ import {
   fanShortcutChoices,
   clipModelHistory,
   sanitizeIdolReply,
+  stripModelThink,
   userWantsPhoto,
 } from "@/lib/chat-reply";
 import {
@@ -278,7 +280,9 @@ export async function suggestChoices(input: {
   const idol = await loadIdolByTokenId(input.tokenId);
   if (!idol) return [];
   const chapter = sceneAt(idol, input.chapter);
-  const backend = await chatBackend(`idol:${input.tokenId}:choices`);
+  // Same MiniMax CN path as paid text. Mainnet x402 is disabled, so the user-paid
+  // backend throws before MiniMax fallback and production returned {ok:true, choices:[]}.
+  const backend = resolveAiBackend();
   if (!Object.keys(chapter ?? {}).length || !backend) return [];
 
   const history = input.messages
@@ -298,6 +302,7 @@ export async function suggestChoices(input: {
         {
           temperature: 0.95,
           max_tokens: 60,
+          max_completion_tokens: 60,
           messages: [
             {
               role: "system",
@@ -322,7 +327,9 @@ export async function suggestChoices(input: {
       );
       if (!res.ok) return "";
       const body = (await res.json()) as { choices?: { message?: unknown }[] };
-      return sanitizeIdolReply(assistantTextContent(body.choices?.[0]?.message)).slice(0, 120);
+      return sanitizeIdolReply(
+        stripModelThink(assistantTextContent(body.choices?.[0]?.message)),
+      ).slice(0, 120);
     };
     const choices = (
       await Promise.all([writeChoice("gentle-progress"), writeChoice("bold-progress")])

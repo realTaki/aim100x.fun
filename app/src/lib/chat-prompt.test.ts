@@ -5,6 +5,7 @@ import {
   THREAD_LANGUAGE_POLICY,
   chatFanLines,
   chatIdolLines,
+  chatPhotoFollowsPolicy,
   chatToolPolicy,
 } from "./chat-prompt.ts";
 
@@ -82,6 +83,16 @@ describe("chatToolPolicy", () => {
     const without = chatToolPolicy(false).join("\n");
     assert.match(without, /You cannot attach photos or voice notes this turn/);
     assert.equal(without.includes("use the request tools"), false);
+  });
+});
+
+describe("chatPhotoFollowsPolicy", () => {
+  it("tells the idol a catalog photo will follow instead of refusing", () => {
+    const text = chatPhotoFollowsPolicy().join("\n");
+    assert.match(text, /photo bubble will be attached/);
+    assert.match(text, /Do not refuse/);
+    assert.equal(text.includes("You cannot attach photos"), false);
+    assert.equal(text.includes("Do not call tools, generate images or voice"), false);
   });
 });
 

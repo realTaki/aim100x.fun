@@ -8,6 +8,9 @@ import { uid } from "@/lib/utils";
 import { normalizeMediaId } from "@/lib/media-app-id";
 import { sceneIdOf, sceneQueryForIdol } from "@/lib/library";
 import { listUnusedImages, matchImageByHint, mergeUsedImageId } from "@/lib/library";
+import { sceneSetting, sceneTopic } from "@/lib/idol-fields";
+import { sceneAt } from "@/lib/idols";
+import { buildTestnetChatSystemPrompt, testnetWantImage } from "@/lib/testnet-chat-turn";
 
 async function isFanOf(userId: string, tokenId: number, bearerToken?: string) {
   const { isFanMembershipActive } = await import("@/lib/subscribe/fan-membership.server");
@@ -111,6 +114,12 @@ export const sendChat = createServerFn({ method: "POST" })
     const idol = await loadIdolByTokenId(data.tokenId);
     if (!idol) return { ok: false as const, error: "Unknown idol" };
     const { testnetTextChat } = await import("./testnet-chat.server.ts");
+    const chapter = Math.max(
+      0,
+      Math.min(idol.scenes.length - 1, Number(data.thread.chapter) || 0),
+    );
+    const scene = sceneAt(idol, chapter);
+    const wantImage = testnetWantImage(data.content);
     try {
       const result = await testnetTextChat(
         user,
@@ -123,20 +132,15 @@ export const sendChat = createServerFn({ method: "POST" })
             .slice(-36)
             .map((m) => ({ role: m.role, content: m.content })),
         },
-        [
-          "You are an AI roleplay character. Reply with text only, in the user's language.",
-          `Name: ${idol.name}`,
-          `Personality: ${idol.personality}`,
-          `Bio: ${idol.bio}`,
-          "Do not call tools, generate images or voice. Keep replies concise.",
-        ].join("\n"),
+        buildTestnetChatSystemPrompt(idol, {
+          chapterTitle: sceneTopic(scene),
+          theme: sceneSetting(scene),
+          fan: data.fan,
+          wantImage,
+        }),
       );
       if (!result.ok)
         return { ok: false as const, error: `${result.error} Message ID: ${result.requestId}` };
-      const chapter = Math.max(
-        0,
-        Math.min(idol.scenes.length - 1, Number(data.thread.chapter) || 0),
-      );
       const userMessage: ChatMsg = {
         id: `${result.requestId}:user`,
         role: "user",
@@ -155,7 +159,7 @@ export const sendChat = createServerFn({ method: "POST" })
         reply: result.reply,
         assistantMessage,
         choices: [] as string[],
-        wantImage: false,
+        wantImage,
         wantVoice: false,
         voiceText: undefined as string | undefined,
         imageId: undefined as string | undefined,
