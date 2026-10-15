@@ -1,19 +1,32 @@
 import { initializeProductSchema, operationStore } from "./operation-store.server.ts";
 import {
-  sponsorTestnetGas,
   productGasLimit,
+  gasBudget,
+  sponsoredOuterGas,
+  reserveSponsoredGas,
   MAX_PRODUCT_GAS,
   MAX_SPONSORED_FEE,
   SPONSORED_GAS,
+  SPONSORED_VERIFICATION_GAS,
+  SPONSORED_PRE_VERIFICATION_GAS,
+  sponsorAccount,
 } from "./testnet-gas.server.ts";
-import { waitForReserveDelay } from "./monad-reserve-delay.ts";
 import { runProductOperation } from "./operation-runner.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash } from "node:crypto";
 import { createPublicClient, createWalletClient, erc20Abi, keccak256, type Hex } from "viem";
 import { z } from "zod";
 import { boundAppWallet } from "./app-wallet.server.ts";
-import { testnetWalletChain } from "./app-wallet-chain.ts";
+import { APP_ENTRY_POINT, testnetWalletChain } from "./app-wallet-chain.ts";
+import {
+  ENTRY_POINT_ABI,
+  encodeAccountExecute,
+  encodeHandleOps,
+  packUint128Pair,
+  userOperationTypedData,
+  type PackedUserOperation,
+} from "./app-wallet-7702.ts";
+import { ensureAppWalletDelegation } from "./app-wallet-executor.server.ts";
 import {
   IDOLS100X_ADDRESS,
   IDOLS100X_IDOL_ABI,
@@ -94,18 +107,21 @@ export async function executeTestnetCalls(
   ports: {
     store?: import("./operation-runner.ts").OperationStore;
     active?: typeof authStore.active;
-    sponsor?: typeof sponsorTestnetGas;
-    afterSponsor?: typeof waitForReserveDelay;
+    delegate?: typeof ensureAppWalletDelegation;
+    reserve?: typeof reserveSponsoredGas;
   } = {},
 ) {
   const account = boundAppWallet(user).account;
+  const sponsor = sponsorAccount();
+  if (sponsor.address.toLowerCase() === account.address.toLowerCase())
+    throw new Error("Sponsor cannot be user");
   const reader = createPublicClient({
     chain: testnetWalletChain,
     transport: monadTransport(10143),
   });
   if ((await reader.getChainId()) !== 10143) throw new Error("Wrong product chain");
   const writer = createWalletClient({
-    account,
+    account: sponsor,
     chain: testnetWalletChain,
     transport: monadTransport(10143),
   });
@@ -125,41 +141,69 @@ export async function executeTestnetCalls(
       async sign(call) {
         if (!(await (ports.active ?? authStore.active)(user.sessionId, user.id)))
           throw new Error("Session revoked");
-        // Bounded gas for the allowlisted faucet, ERC20 transfer/approval and subscription.
-        // Sponsor funds gas before APP signing; users need no testnet MON for these flows.
         await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
-        let gasLimit: bigint;
+        await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
+        let innerGas: bigint;
         try {
-          gasLimit = productGasLimit(
+          innerGas = productGasLimit(
             await reader.estimateGas({ account: account.address, ...call }),
           );
         } catch {
-          gasLimit = SPONSORED_GAS;
+          innerGas = SPONSORED_GAS;
         }
+        const outerGas = sponsoredOuterGas(innerGas);
+        const baseFee = (await reader.getBlock()).baseFeePerGas ?? 0n;
+        const budget = gasBudget(baseFee, outerGas);
         const sponsorshipIndex = index++;
-        const gas = ports.sponsor
-          ? await ports.sponsor(account.address, requestId, sponsorshipIndex, gasLimit)
-          : await sponsorTestnetGas(account.address, requestId, sponsorshipIndex, gasLimit);
-        // Consensus only sees balances from block n-k. Spending MON that just
-        // arrived is excluded, then dropped from the local mempool.
-        if (ports.afterSponsor) await ports.afterSponsor(() => reader.getBlockNumber());
-        else if (!ports.sponsor) await waitForReserveDelay(() => reader.getBlockNumber());
+        await (ports.reserve ?? reserveSponsoredGas)(
+          account.address,
+          requestId,
+          sponsorshipIndex,
+          budget.gas * budget.maxFeePerGas,
+        );
+        const nonce = await reader.readContract({
+          address: APP_ENTRY_POINT,
+          abi: ENTRY_POINT_ABI,
+          functionName: "getNonce",
+          args: [account.address, 0n],
+        });
+        const unsigned = {
+          sender: account.address,
+          nonce,
+          initCode: "0x" as Hex,
+          callData: encodeAccountExecute(call),
+          accountGasLimits: packUint128Pair(SPONSORED_VERIFICATION_GAS, innerGas),
+          preVerificationGas: SPONSORED_PRE_VERIFICATION_GAS,
+          // Zero UserOp fees: the APP wallet never pays native gas. The sponsor's
+          // outer handleOps transaction pays Monad fees under the daily allowance.
+          gasFees: packUint128Pair(0n, 0n),
+          paymasterAndData: "0x" as Hex,
+        };
+        const userOp: PackedUserOperation = {
+          ...unsigned,
+          signature: await account.signTypedData(userOperationTypedData(unsigned)),
+        };
         const request = await writer.prepareTransactionRequest({
-          ...call,
-          ...gas,
-          gas: gasLimit,
-          type: "eip1559",
-          account,
+          account: sponsor,
           chain: testnetWalletChain,
+          type: "eip1559",
+          to: APP_ENTRY_POINT,
+          data: encodeHandleOps([userOp], sponsor.address),
+          value: 0n,
+          gas: budget.gas,
+          maxFeePerGas: budget.maxFeePerGas,
+          maxPriorityFeePerGas: budget.maxPriorityFeePerGas,
         });
         if (
           request.chainId !== 10143 ||
-          request.gas > MAX_PRODUCT_GAS ||
+          request.to?.toLowerCase() !== APP_ENTRY_POINT.toLowerCase() ||
+          (request.value ?? 0n) !== 0n ||
+          request.gas > budget.gas ||
           request.maxFeePerGas > MAX_SPONSORED_FEE ||
           !request.maxPriorityFeePerGas
         )
           throw new Error("Transaction exceeds gas policy");
-        const signed = await account.signTransaction(request),
+        const signed = await sponsor.signTransaction(request),
           hash = keccak256(signed);
         signedRequests.set(hash, signed);
         return hash;

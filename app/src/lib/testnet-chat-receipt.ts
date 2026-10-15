@@ -1,5 +1,7 @@
 import { decodeEventLog, erc20Abi, type Address, type Hex } from "viem";
 import { LONELY_USD_ADDRESS } from "./idols100x.ts";
+import { APP_ENTRY_POINT } from "./auth/app-wallet-chain.ts";
+import { sponsoredCallFromHandleOps } from "./auth/app-wallet-7702.ts";
 import { TEXT_CHAT_COST, textPaymentCall } from "./testnet-chat-policy.ts";
 export type PaymentEvidence = {
   chainId: number;
@@ -34,18 +36,24 @@ export function verifyTextPayment(
   const call = textPaymentCall(wallet, recipient, requestId, bodyHash),
     t = e.transaction,
     r = e.receipt;
+  const inner = sponsoredCallFromHandleOps(t.input);
   if (
     e.chainId !== 10143 ||
     t.chainId !== 10143 ||
     !same(t.hash, hash) ||
     !same(r.transactionHash, hash) ||
     r.status !== "success" ||
-    !same(t.from, wallet) ||
-    !same(r.from, wallet) ||
-    !same(t.to, LONELY_USD_ADDRESS) ||
-    !same(r.to, LONELY_USD_ADDRESS) ||
+    !same(t.from, recipient) ||
+    !same(r.from, recipient) ||
+    !same(t.to, APP_ENTRY_POINT) ||
+    !same(r.to, APP_ENTRY_POINT) ||
     t.value !== 0n ||
-    !same(t.input, call.data) ||
+    !inner ||
+    !same(inner.sender, wallet) ||
+    !same(inner.beneficiary, recipient) ||
+    !same(inner.to, LONELY_USD_ADDRESS) ||
+    inner.value !== 0n ||
+    !same(inner.data, call.data) ||
     !same(t.blockHash, r.blockHash)
   )
     throw new Error("Invalid testnet chat payment");

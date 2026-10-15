@@ -37,6 +37,8 @@ describe("agent-facing /docs", () => {
       assert.match(text, /1 testnet LUSD per message/);
       assert.match(text, /\*\*Not implemented:/);
       assert.match(text, /platform-funded gas|platform funds gas/);
+      assert.match(text, /EIP-7702/);
+      assert.match(text, /mainnet EIP-7702 delegation remain disabled/);
       assert.doesNotMatch(text, /user pays gas|external wallet owns|no account tables/i);
       assert.match(text, /authorized additional server signers and policies/);
       assert.match(text, /sign repeatedly within an active signing session/);

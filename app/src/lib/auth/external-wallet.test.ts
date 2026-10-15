@@ -73,30 +73,37 @@ it("the public bundler proxy cannot submit a legacy UserOperation", async (t) =>
   assert.equal(response.status, 404);
 });
 
-it("wallet, Privy and Mera APP accounts sign testnet calls only after platform funding; retries do not sign again", async (t) => {
+it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handleOps; retries do not sign again", async (t) => {
   const { createHash } = await import("node:crypto");
   const { deriveIdentityWallet } = await import("./app-wallet.server.ts");
   const { executeTestnetCalls } = await import("./product-wallet.server.ts");
   const { parseTransaction, recoverTransactionAddress, keccak256 } = await import("viem");
-  const { gasBudget, productGasLimit } = await import("./testnet-gas.server.ts");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const { APP_ENTRY_POINT } = await import("./app-wallet-chain.ts");
+  const { sponsoredCallFromHandleOps } = await import("./app-wallet-7702.ts");
   const estimatedGas = 200_000n;
+  const sponsorKey = ("0x" + "22".repeat(32)) as Hex;
+  const sponsor = privateKeyToAccount(sponsorKey);
   const keyBefore = process.env.WALLET_MASTER_SECRET,
-    rpcBefore = process.env.ALCHEMY_MONAD_TESTNET_RPC_URL;
+    rpcBefore = process.env.ALCHEMY_MONAD_TESTNET_RPC_URL,
+    payBefore = process.env.PAYMASTER_SIGNER;
   process.env.WALLET_MASTER_SECRET = "11".repeat(32);
   process.env.ALCHEMY_MONAD_TESTNET_RPC_URL =
     "https://monad-testnet.g.alchemy.com/v2/offline-fixture";
+  process.env.PAYMASTER_SIGNER = sponsorKey;
   t.after(() => {
     for (const [key, previous] of [
       ["WALLET_MASTER_SECRET", keyBefore],
       ["ALCHEMY_MONAD_TESTNET_RPC_URL", rpcBefore],
+      ["PAYMASTER_SIGNER", payBefore],
     ]) {
       if (previous === undefined) delete process.env[key!];
       else process.env[key!] = previous;
     }
   });
   let expected = wallet as `0x${string}`,
-    funded = false,
     nonce = 0,
+    epNonce = 0,
     sent = 0;
   const transactions = new Map<string, { from: string; to: string; index: number }>();
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -104,25 +111,44 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
     let result: unknown;
     if (rpc.method === "eth_chainId") result = "0x279f";
     else if (rpc.method === "eth_call") {
-      assert.equal(rpc.params[0].from.toLowerCase(), expected.toLowerCase());
-      result = "0x";
+      const to = String(rpc.params[0].to ?? "").toLowerCase();
+      if (to === APP_ENTRY_POINT.toLowerCase())
+        result = `0x${epNonce.toString(16).padStart(64, "0")}`;
+      else {
+        if (rpc.params[0].from)
+          assert.equal(rpc.params[0].from.toLowerCase(), expected.toLowerCase());
+        result = "0x";
+      }
     } else if (rpc.method === "eth_estimateGas") result = `0x${estimatedGas.toString(16)}`;
     else if (rpc.method === "eth_getTransactionCount") result = `0x${nonce.toString(16)}`;
+    else if (rpc.method === "eth_getBlockByNumber")
+      result = { baseFeePerGas: "0x1", number: "0x1" };
+    else if (rpc.method === "eth_maxPriorityFeePerGas") result = "0x77359400";
     else if (rpc.method === "eth_sendRawTransaction") {
-      assert.equal(funded, true, "platform must fund before APP broadcast");
-      funded = false;
       const bytes = rpc.params[0];
       const tx = parseTransaction(bytes);
       assert.equal(
         (await recoverTransactionAddress({ serializedTransaction: bytes })).toLowerCase(),
+        sponsor.address.toLowerCase(),
+      );
+      assert.notEqual(
+        (await recoverTransactionAddress({ serializedTransaction: bytes })).toLowerCase(),
         expected.toLowerCase(),
       );
       assert.equal(tx.chainId, 10143);
-      assert.equal(tx.gas, productGasLimit(estimatedGas));
+      assert.equal(tx.to?.toLowerCase(), APP_ENTRY_POINT.toLowerCase());
+      assert.equal(tx.value ?? 0n, 0n);
       assert.ok((tx.maxPriorityFeePerGas ?? 0n) > 0n);
+      const inner = sponsoredCallFromHandleOps(tx.data!);
+      assert.ok(inner);
+      assert.equal(inner.sender.toLowerCase(), expected.toLowerCase());
+      assert.equal(inner.to.toLowerCase(), wallet);
+      assert.equal(inner.value, 0n);
+      assert.equal(inner.beneficiary.toLowerCase(), sponsor.address.toLowerCase());
       assert.equal(tx.nonce, nonce++);
+      epNonce++;
       result = keccak256(bytes);
-      transactions.set(result as string, { from: expected, to: wallet, index: sent++ });
+      transactions.set(result as string, { from: sponsor.address, to: APP_ENTRY_POINT, index: sent++ });
     } else if (rpc.method === "eth_getTransactionReceipt") {
       const tx = transactions.get(rpc.params[0])!;
       result = {
@@ -154,6 +180,7 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
     expected = deriveIdentityWallet(identity).account.address;
     assert.notEqual(expected.toLowerCase(), wallet);
     nonce = 0;
+    epNonce = 0;
     const user = {
       identity,
       walletAddress: expected,
@@ -177,16 +204,18 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
       },
       release: async () => {},
     };
-    let sponsorships = 0;
+    let sponsorships = 0,
+      delegated = 0;
     const ports = {
       store,
       active: async () => true,
-      sponsor: async (address: `0x${string}`, _id: string, index: number, gas?: bigint) => {
+      delegate: async () => {
+        delegated++;
+      },
+      reserve: async (address: `0x${string}`, _id: string, index: number, amount: bigint) => {
         assert.equal(address, expected);
         assert.equal(index, sponsorships++);
-        assert.equal(gas, productGasLimit(estimatedGas));
-        funded = true;
-        return gasBudget(1n, gas);
+        assert.ok(amount > 0n);
       },
     };
     const plan = async () => [
@@ -198,6 +227,7 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
       "confirmed",
     );
     assert.equal(sponsorships, 2);
+    assert.equal(delegated, 2);
     const before = sent;
     assert.equal(
       (await executeTestnetCalls(user, "request", "body", plan, ports)).status,
@@ -216,7 +246,7 @@ it("wallet, Privy and Mera APP accounts sign testnet calls only after platform f
     record = null;
     const unfunded = await executeTestnetCalls(user, "unfunded", "body", plan, {
       ...ports,
-      sponsor: async () => {
+      reserve: async () => {
         throw new Error("Platform allowance exhausted");
       },
     });

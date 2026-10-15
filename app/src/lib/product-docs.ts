@@ -42,7 +42,7 @@ A **one-time LUSD subscription** unlocks chat. Text costs **1 testnet LUSD per m
 | Label | In this product |
 | --- | --- |
 | **External-wallet SIWE / Privy / Mera** | Verified identities bind independent APP accounts; current wallet choices are explained above. |
-| **APP wallet** | Stable server-derived EOA signs all supported business transactions on testnet; the platform funds gas. Mainnet payment and delegation are disabled. |
+| **APP wallet** | Stable server-derived EOA signs all supported business transactions on testnet. It delegates via EIP-7702; the platform sponsor submits the operation and pays gas, so the wallet never needs MON. Mainnet payment and delegation are disabled. |
 | **ERC-721** idol NFT | Collection **Idols100x**. One token = one idol. The **broker** (经纪人) **is the NFT owner**. Transfer/buy changes control of the idol and its TBA. Assets stay at the TBA address; private content access follows ownership. Browser chat history is not transferred. |
 | **ERC-6551** token-bound account (TBA) | Subscription and image LUSD receipts stay in the idol TBA; its current owner withdraws them to their APP wallet. |
 | **LonelyUSD (LUSD)** | Testnet ERC-20, 6 decimals. APP-wallet product payments and per-message simulated billing use LUSD. |
@@ -55,7 +55,7 @@ A **one-time LUSD subscription** unlocks chat. Text costs **1 testnet LUSD per m
 App tabs: **Plaza** (广场) \`/\` · **Subscribed** (已订阅) \`/subscribed\` · **Creator Center** (创作者中心) \`/me/manager\` · **Profile** (个人主页) \`/me\`.
 
 1. Open https://aim100x.fun → **Login** with an external wallet, Privy or Mera when configured. Each identity has a separate APP account. The device PIN is a screen lock, not account authentication.
-2. **Profile**: set **Prefer language**, username, bio and avatar. Claim **+100 LUSD** into your APP wallet for testnet product operations. Platform gas is bounded by its daily allowance; no MON deposit is required.
+2. **Profile**: set **Prefer language**, username, bio and avatar. Claim **+100 LUSD** into your APP wallet for testnet product operations. Platform gas is EIP-7702-sponsored within its daily allowance; no MON deposit is required.
 3. **Plaza**: public idols (\`isPublic\`). Search, sort by subscribers or lifetime receipts (累计收账). Open a card → profile \`/idol/{tokenId}\`.
 4. **Subscribe** (订阅; one-time payment, default **1 LUSD**, broker can change). Pays the idol TBA; you become a fan. DM stays locked until subscribed.
 5. **DM** \`/chat/{tokenId}\`: text or hold-to-talk voice (STT). The idol replies in short 1:1 lines; it may attach a photo or a voice-note bubble (TTS). Thread lives in this browser (OPFS) per APP account. History \`/chat/{tokenId}/history\`: search, photos tab, restart (reseeds **欢迎词** (welcome) + opening; keeps seen photos).
@@ -191,9 +191,9 @@ Optional platform-paid image fallback depends on configuration and never retries
 
 This guide describes current code; offline tests and deployed anonymous-page checks are distinct from authenticated live acceptance.
 
-- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; platform-funded gas within limits; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
+- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; EIP-7702 APP-wallet delegation on Monad testnet with PAYMASTER_SIGNER-sponsored gas; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
 - **Recorded verification:** offline login/operation/replay/ownership tests and production anonymous UI/icon smoke. Provider configuration, real passkey ceremonies, database initialization and funded business transactions need live acceptance.
-- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and EIP-7702 delegation remain disabled.
+- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and mainnet EIP-7702 delegation remain disabled.
 
 Subscriptions remain part of the product. Removing them in favor of message-only billing would be a product change, not a description of current behavior.
 `;

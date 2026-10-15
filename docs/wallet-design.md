@@ -55,9 +55,10 @@ continuity preserve the corresponding APP address.
 
 The authenticated client requests a typed action. The server checks its session,
 permissions, price bounds and replay state, derives the bound APP signer, persists
-transaction evidence and signs/broadcasts on Monad Testnet (10143). APP private
-keys stay on the server, which therefore controls these wallets. The platform
-funds gas within its daily allowance and fee/gas limits.
+transaction evidence and executes on Monad Testnet (10143). APP private keys stay
+on the server, which therefore controls these wallets. Each APP wallet delegates
+via EIP-7702; `PAYMASTER_SIGNER` submits the UserOperation and pays gas within the
+daily allowance and fee/gas limits. The APP wallet never needs MON.
 
 Supported operations include LUSD faucet, subscription, tips, quoted image unlocks,
 NFT mint/buy/sale listing, pricing, Agent authorization and TBA withdrawal. Direct
