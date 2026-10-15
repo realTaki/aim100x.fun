@@ -6,6 +6,6 @@ Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 
 Narration script: [aim100x-product-demo-narration.md](./aim100x-product-demo-narration.md)
 
-Same file as the technical demo. Privy email login now mints an APP wallet session. Faucet and subscribe confirms are in the cut. Chat and image stop when Production wallet send returns 503 (Alchemy Monad RPC URL missing).
+Same file as the technical demo. Privy email login mints an APP wallet session. RPC reads work. Faucet and subscribe confirms are in the cut. Chat and image stop because wallet send fails before a hash (APP wallet has 0 MON; Production does not sponsor gas).
 
 Live product: https://aim100x.fun
