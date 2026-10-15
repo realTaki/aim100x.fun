@@ -7,7 +7,7 @@ export type OperationStore = {
   status(status: OperationResult["status"]): Promise<void>;
   release(): Promise<void>;
 };
-/** Single writer, durable evidence before submission, no automatic resubmission. */
+/** Single writer, durable evidence before submission. Dropped pending rows may be recovered after a TTL; the same signed bytes are never replayed. */
 export async function runProductOperation<T>(bodyHash: string, plan: () => Promise<T[]>, store: OperationStore, chain: {
   sign(call: T): Promise<`0x${string}`>;
   send(hash: `0x${string}`): Promise<void>;

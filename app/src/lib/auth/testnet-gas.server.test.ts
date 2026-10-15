@@ -7,9 +7,11 @@ import {
   DAILY_GAS_ALLOWANCE,
   MAX_PRODUCT_GAS,
   MAX_SPONSORED_FEE,
+  MONAD_PRIORITY_FEE,
   SPONSORED_GAS,
   fundTestnetGas,
   gasBudget,
+  productGasLimit,
   type GasPorts,
 } from "./testnet-gas.server.ts";
 import type { OperationResult } from "./operation-runner.ts";
@@ -80,13 +82,17 @@ it("clamps the 2x fee buffer so a 100 gwei Monad testnet base fee still sponsors
   const budget = gasBudget(MONAD_TESTNET_BASE_FEE, MAX_PRODUCT_GAS);
   assert.equal(budget.gas, MAX_PRODUCT_GAS);
   assert.equal(budget.maxFeePerGas, MAX_SPONSORED_FEE);
-  assert.equal(budget.maxPriorityFeePerGas, 0n);
+  assert.equal(budget.maxPriorityFeePerGas, MONAD_PRIORITY_FEE);
   assert.ok(budget.gas * budget.maxFeePerGas < DAILY_GAS_ALLOWANCE);
   assert.equal(gasBudget(1n).gas, SPONSORED_GAS);
   assert.equal(gasBudget(MAX_SPONSORED_FEE).maxFeePerGas, MAX_SPONSORED_FEE);
+  assert.equal(gasBudget(MAX_SPONSORED_FEE).maxPriorityFeePerGas, MONAD_PRIORITY_FEE);
   assert.throws(() => gasBudget(MAX_SPONSORED_FEE + 1n), /sponsorship limit/);
   for (const gas of [0n, 20_999n, MAX_PRODUCT_GAS + 1n])
     assert.throws(() => gasBudget(1n, gas), /gas limit/);
+  assert.equal(productGasLimit(200_000n), 215_000n);
+  assert.equal(productGasLimit(MAX_PRODUCT_GAS), MAX_PRODUCT_GAS);
+  assert.equal(productGasLimit(20_000n), 22_575n);
 });
 
 it("funds an empty APP wallet at the live Monad testnet base fee before any APP signature", async () => {
@@ -124,10 +130,13 @@ it("faucet, subscribe and chat sends default to sponsorTestnetGas on chain 10143
   assert.match(httpSrc, /executeProductRequest/);
   assert.match(walletSrc, /await sponsorTestnetGas\(/);
   assert.match(walletSrc, /MAX_SPONSORED_FEE/);
+  assert.match(walletSrc, /waitForReserveDelay/);
+  assert.match(walletSrc, /productGasLimit/);
   assert.match(chatSrc, /executeTestnetCalls\(/);
   assert.doesNotMatch(chatSrc, /sponsor:/);
   assert.match(gasSrc, /chainId\(\)\) !== 10143/);
   assert.match(walletSrc, /getChainId\(\)\) !== 10143/);
   assert.match(chatSrc, /getChainId\(\)\) !== 10143/);
   assert.doesNotMatch(gasSrc, /chainId\(\)\) !== 143/);
+  assert.match(gasSrc, /MONAD_PRIORITY_FEE/);
 });
