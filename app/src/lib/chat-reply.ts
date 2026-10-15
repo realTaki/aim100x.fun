@@ -44,8 +44,13 @@ export function clipModelHistory(
     .slice(-MODEL_HISTORY_LIMIT);
 }
 
+/** MiniMax-M3 may wrap a spoken line in think tags even when thinking is disabled. */
+export function stripModelThink(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
 export function userWantsPhoto(text: string): boolean {
-  return /发(?:一)?张|拍(?:一)?张|再来一张|再发一张|发个自拍|发张照|看看照片|看你拍的|自拍来|照片来|\bselfie\b|\bnude\b|\bpic\b/i.test(
+  return /发(?:一)?张|拍(?:一)?张|再来一张|再发一张|发个自拍|发张照|发(?:个|张)?照片|来[张个]照片|看看照片|看你拍的|自拍来|照片来|给我.{0,8}照片|能不能.{0,10}(?:照片|自拍)|send me (?:a |your )?(?:photo|picture|pic)s?|(?:send|share|show)(?: me)? (?:a |your )?(?:photo|picture|pic)s?|want (?:a |your )?(?:photo|picture)|\byour photo\b|\bselfies?\b|\bnudes?\b|\bpics?\b|\bphotos?\b|\bpictures?\b/i.test(
     text.trim(),
   );
 }

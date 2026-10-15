@@ -72,3 +72,16 @@ export function chatToolPolicy(withTools: boolean): string[] {
     "Write spoken chat text only. You cannot attach photos or voice notes this turn. Never write tool names, arguments, image ids, or invoke/run-tool text.",
   ];
 }
+
+/**
+ * Testnet text billing has no MiniMax tools. When the fan asked for a photo, the
+ * catalog attach path still follows this turn — so the spoken line must be a
+ * caption, never a refusal.
+ */
+export function chatPhotoFollowsPolicy(): string[] {
+  return [
+    "The fan asked for a photo. A photo bubble will be attached after this text in THIS app. Write a short spoken caption as if you already dropped the selfie here — e.g. 刚换了这件 你觉得呢.",
+    "Do not refuse. Do not say you cannot send photos. Never mention WeChat, iMessage, or another app.",
+    "Never write tool names, arguments, image ids, JSON wrappers, or invoke/run-tool text in the chat. Chat text is spoken caption only.",
+  ];
+}

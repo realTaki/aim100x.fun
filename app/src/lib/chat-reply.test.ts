@@ -7,6 +7,7 @@ import {
   MODEL_HISTORY_LIMIT,
   MODEL_HISTORY_MAX_CHARS,
   sanitizeIdolReply,
+  stripModelThink,
   userWantsPhoto,
 } from "@/lib/chat-reply";
 
@@ -66,6 +67,20 @@ describe("userWantsPhoto", () => {
     assert.equal(userWantsPhoto("发张自拍"), true);
     assert.equal(userWantsPhoto("能拍张美足的照片吗？我喜欢看脚"), true);
     assert.equal(userWantsPhoto("过来抱抱"), false);
+  });
+
+  it("detects the production English ask that previously missed the regex", () => {
+    assert.equal(userWantsPhoto("send me a photo"), true);
+    assert.equal(userWantsPhoto("send me a picture"), true);
+    assert.equal(userWantsPhoto("show me a pic"), true);
+    assert.equal(userWantsPhoto("发照片"), true);
+    assert.equal(userWantsPhoto("来张照片"), true);
+  });
+});
+
+describe("stripModelThink", () => {
+  it("drops MiniMax think wrappers before a chip or caption is used", () => {
+    assert.equal(stripModelThink("<think>private</think>再说说嘛"), "再说说嘛");
   });
 });
 
