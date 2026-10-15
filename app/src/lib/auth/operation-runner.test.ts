@@ -32,3 +32,14 @@ it('does not broadcast if durable hash storage fails, or if session/signing fail
  const g=fixture();g.chain.sign=async()=>{throw new Error('session revoked');};
  assert.equal((await runProductOperation('body',async()=>[1],g.store,g.chain)).status,'failed');assert.equal(g.sends(),0);assert.equal(g.locked(),false);
 });
+it('zero initial allowance alone does not fail a sequential approve then pay in the controlled model',async()=>{
+ let allowance=0, seq=0;const calls=new Map<`0x${string}`,string>();
+ const f=fixture();
+ const chain={
+  async sign(call:string){if(call==='pay'&&allowance<1)throw new Error('no allowance');const h=`0x${(++seq).toString(16).padStart(64,'0')}` as `0x${string}`;calls.set(h,call);return h;},
+  async send(h:`0x${string}`){if(calls.get(h)==='approve')allowance=1;else allowance--;},
+  async confirmed(){return true;}
+ };
+ const result=await runProductOperation('body',async()=>['approve','pay'],f.store,chain);
+ assert.equal(result.status,'confirmed');assert.equal(result.hashes.length,2);assert.equal(allowance,0);
+});

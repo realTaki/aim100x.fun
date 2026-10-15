@@ -5,14 +5,16 @@ import {
   createPublicClient,
   encodeFunctionData,
   erc20Abi,
-  http,
+  decodeEventLog,
+  parseAbi,
   keccak256,
   stringToHex,
   type Address,
   type Hex,
 } from "viem";
 import { sessionSigningKey } from "./auth/app-wallet.server.ts";
-import { testnetWalletChain } from "./auth/app-wallet-chain.ts";
+import { APP_ENTRY_POINT, testnetWalletChain } from "./auth/app-wallet-chain.ts";
+import { sponsoredCallsFromHandleOps } from "./auth/app-wallet-7702.ts";
 import {
   IDOLS100X_ADDRESS,
   IDOLS100X_CHAIN_ID,
@@ -118,7 +120,10 @@ export async function prepareImagePayment(
   await available(p.imageId, p.tokenId);
   return { calls: imagePaymentCalls(p), amount: p.amount };
 }
-/** Read-only confirmation: the server never submits NFT, tip or image payments. */
+const paidAbi = parseAbi([
+  "event Paid(address indexed payer, uint256 indexed tokenId, uint256 amount)",
+]);
+/** Read-only confirmation of an exact checkout inside the sponsored APP call. */
 export async function settleImagePayment(
   userId: string,
   wallet: Address,
@@ -136,16 +141,60 @@ export async function settleImagePayment(
     reader.getTransaction({ hash }),
     reader.getTransactionReceipt({ hash }),
   ]);
+  const same = (a: string | null | undefined, b: string) => a?.toLowerCase() === b.toLowerCase();
+  const inner = sponsoredCallsFromHandleOps(tx.input);
+  const expected = imagePaymentCalls(p);
+  // Retain settlement for an older single tagged-pay hash, but never ignore
+  // extra calls in a batch. New image payments must be exact approve + pay.
+  const expectedCalls = inner?.execution === "executeBatch" ? expected : [expected[1]];
+  const exactCalls =
+    inner?.calls.length === expectedCalls.length &&
+    inner.calls.every(
+      (call, index) =>
+        call.value === 0n &&
+        same(call.to, expectedCalls[index].to) &&
+        same(call.data, expectedCalls[index].data),
+    );
   if (
     receipt.status !== "success" ||
+    tx.chainId !== IDOLS100X_CHAIN_ID ||
+    !same(tx.hash, hash) ||
+    !same(receipt.transactionHash, hash) ||
     !tx.blockNumber ||
     tx.blockNumber < BigInt(p.fromBlock) ||
-    tx.from.toLowerCase() !== wallet.toLowerCase() ||
-    tx.to?.toLowerCase() !== IDOLS100X_ADDRESS.toLowerCase() ||
+    tx.blockNumber !== receipt.blockNumber ||
+    !same(tx.blockHash, receipt.blockHash) ||
+    !same(tx.from, receipt.from) ||
+    !same(tx.to, APP_ENTRY_POINT) ||
+    !same(receipt.to, APP_ENTRY_POINT) ||
     tx.value !== 0n ||
-    tx.input.toLowerCase() !== imagePaymentCalls(p)[1].data.toLowerCase()
+    !inner ||
+    !same(inner.sender, wallet) ||
+    !same(inner.beneficiary, tx.from) ||
+    !exactCalls
   )
     throw new Error("Payment does not match this photo checkout");
+  // A successful outer handleOps receipt can contain a failed inner operation.
+  // Require the collection's exact Paid event before issuing media access.
+  const paid = receipt.logs.filter((log) => {
+    if (!same(log.address, IDOLS100X_ADDRESS) || log.removed) return false;
+    try {
+      const event = decodeEventLog({
+        abi: paidAbi,
+        eventName: "Paid",
+        data: log.data,
+        topics: log.topics,
+      });
+      return (
+        same(event.args.payer, wallet) &&
+        event.args.tokenId === BigInt(p.tokenId) &&
+        event.args.amount === BigInt(p.amount)
+      );
+    } catch {
+      return false;
+    }
+  });
+  if (paid.length !== 1) throw new Error("Missing exact image Paid receipt");
   await deps.available(p.imageId, p.tokenId);
   const access = await new SignJWT({ imageId: p.imageId, wallet: wallet.toLowerCase() })
     .setProtectedHeader({ alg: "HS256" })

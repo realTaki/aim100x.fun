@@ -44,6 +44,7 @@ it("refuses mainnet spending independently of testnet 7702 sponsorship", () => {
 it("faucet, subscribe and chat sends use 7702 sponsor-submitted handleOps on chain 10143", () => {
   const walletSrc = readFileSync(new URL("./product-wallet.server.ts", import.meta.url), "utf8");
   const chatSrc = readFileSync(new URL("../testnet-chat.server.ts", import.meta.url), "utf8");
+  const imageSrc = readFileSync(new URL("../chat-image-payment.server.ts", import.meta.url), "utf8");
   const httpSrc = readFileSync(new URL("./wallet-auth-http.server.ts", import.meta.url), "utf8");
   const gasSrc = readFileSync(new URL("./testnet-gas.server.ts", import.meta.url), "utf8");
   const executorSrc = readFileSync(new URL("./app-wallet-executor.server.ts", import.meta.url), "utf8");
@@ -53,6 +54,8 @@ it("faucet, subscribe and chat sends use 7702 sponsor-submitted handleOps on cha
   assert.match(walletSrc, /APP_ENTRY_POINT/);
   assert.match(walletSrc, /packUint128Pair\(0n, 0n\)/);
   assert.match(walletSrc, /reserveSponsoredGas/);
+  assert.match(walletSrc, /batch: action.kind === "image"/);
+  assert.match(walletSrc, /encodeAccountExecuteBatch/);
   assert.doesNotMatch(walletSrc, /sponsorTestnetGas|fundTestnetGas/);
   assert.doesNotMatch(gasSrc, /function fundTestnetGas|function sponsorTestnetGas/);
   assert.match(executorSrc, /testnet-only/);
@@ -63,4 +66,7 @@ it("faucet, subscribe and chat sends use 7702 sponsor-submitted handleOps on cha
   assert.match(walletSrc, /getChainId\(\)\) !== 10143/);
   assert.match(chatSrc, /getChainId\(\)\) !== 10143/);
   assert.match(gasSrc, /MONAD_PRIORITY_FEE/);
+  assert.match(imageSrc, /sponsoredCallsFromHandleOps/);
+  assert.match(imageSrc, /APP_ENTRY_POINT/);
+  assert.doesNotMatch(imageSrc, /tx\.from\.toLowerCase\(\) !== wallet/);
 });

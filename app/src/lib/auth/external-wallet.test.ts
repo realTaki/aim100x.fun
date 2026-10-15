@@ -80,7 +80,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
   const { parseTransaction, recoverTransactionAddress, keccak256 } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
   const { APP_ENTRY_POINT } = await import("./app-wallet-chain.ts");
-  const { sponsoredCallFromHandleOps } = await import("./app-wallet-7702.ts");
+  const { sponsoredCallsFromHandleOps } = await import("./app-wallet-7702.ts");
   const estimatedGas = 200_000n;
   const sponsorKey = ("0x" + "22".repeat(32)) as Hex;
   const sponsor = privateKeyToAccount(sponsorKey);
@@ -139,7 +139,10 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       assert.equal(tx.to?.toLowerCase(), APP_ENTRY_POINT.toLowerCase());
       assert.equal(tx.value ?? 0n, 0n);
       assert.ok((tx.maxPriorityFeePerGas ?? 0n) > 0n);
-      const inner = sponsoredCallFromHandleOps(tx.data!);
+      const execution = sponsoredCallsFromHandleOps(tx.data!);
+      assert.ok(execution);
+      const inner = { sender: execution.sender, beneficiary: execution.beneficiary, ...execution.calls[execution.calls.length - 1] };
+      assert.ok(execution.calls.every(call => call.to.toLowerCase() === wallet && call.value === 0n));
       assert.ok(inner);
       assert.equal(inner.sender.toLowerCase(), expected.toLowerCase());
       assert.equal(inner.to.toLowerCase(), wallet);
@@ -168,6 +171,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
         type: "0x2",
       };
     } else if (rpc.method === "eth_blockNumber") result = "0x1";
+    else if (rpc.method === "eth_getCode") result = "0x";
     else assert.fail(`Unexpected RPC ${rpc.method}`);
     return Response.json({ jsonrpc: "2.0", id: 1, result });
   });
@@ -241,6 +245,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       active: async () => false,
     });
     assert.equal(revoked.status, "failed");
+    assert.equal(revoked.failureStage, "session");
     assert.equal(sent, before);
     assert.equal(sponsorships, 2);
     record = null;
@@ -251,10 +256,19 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       },
     });
     assert.equal(unfunded.status, "failed");
+    assert.equal(unfunded.failureStage, "gas-reservation");
     assert.equal(sent, before);
     await assert.rejects(
       executeTestnetCalls({ ...user, walletAddress: wallet }, "wrong", "body", plan, ports),
       /Wallet derivation changed/,
     );
+    record = null;
+    sponsorships = 0;
+    const batched = await executeTestnetCalls(user, "image-batch", "image-body", plan, ports, {
+      batch: true,
+    });
+    assert.equal(batched.status, "confirmed");
+    assert.equal(batched.hashes.length, 1);
+    assert.equal(sponsorships, 1);
   }
 });
