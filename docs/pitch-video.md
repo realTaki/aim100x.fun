@@ -6,6 +6,6 @@ Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 
 Narration script: [aim100x-product-demo-narration.md](./aim100x-product-demo-narration.md)
 
-Same file as the technical demo. Privy login, EIP-7702 faucet, subscribe, and paid chat are in the cut. The sponsor submits `handleOps`; the APP wallet never needs MON. Chips and a photo did not come back from the model this time.
+Same file as the technical demo. Privy login, EIP-7702 faucet already on-chain, subscribed Natalie, MiniMax quick-chat bubbles, a photo-ask chip, and a paid unlock card are in the cut. Unlock payment did not confirm.
 
 Live product: https://aim100x.fun
