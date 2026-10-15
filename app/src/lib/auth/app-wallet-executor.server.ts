@@ -1,24 +1,29 @@
 import { monadTransport } from "../monad-rpc.ts";
 import { rejectMainnetSpending } from "./mainnet-disabled.server.ts";
-import { createPublicClient, createWalletClient, http, parseAbi, type Chain } from "viem";
+import { createPublicClient, createWalletClient, parseAbi, type Chain } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { readPaymasterSigner } from "../paymaster-signer.ts";
 import {
   APP_ACCOUNT_IMPLEMENTATION,
   APP_ENTRY_POINT,
   mainnetWalletChain,
+  testnetWalletChain,
 } from "./app-wallet-chain.ts";
+import { appWalletDelegationCode } from "./app-wallet-7702.ts";
+import { gasBudget, productGasLimit } from "./testnet-gas.server.ts";
 
-/** Delegate only the server-derived account; never replace another implementation. */
+const DELEGATION_GAS_CAP = 200_000n;
+
+/** Delegate only the server-derived APP wallet on testnet; mainnet stays hard-disabled. */
 export async function ensureAppWalletDelegation(owner: PrivateKeyAccount, chain: Chain) {
-  rejectMainnetSpending();
-  if (chain.id !== mainnetWalletChain.id) throw new Error("API wallet delegation is mainnet-only");
+  if (chain.id === mainnetWalletChain.id) rejectMainnetSpending();
+  if (chain.id !== testnetWalletChain.id) throw new Error("API wallet delegation is testnet-only");
   const reader = createPublicClient({
     chain,
     transport: monadTransport(chain.id),
   });
   if ((await reader.getChainId()) !== chain.id) throw new Error("Wallet RPC chain mismatch");
-  const delegate = `0xef0100${APP_ACCOUNT_IMPLEMENTATION.slice(2)}`.toLowerCase();
+  const delegate = appWalletDelegationCode();
   const [code, implementation, epCode] = await Promise.all([
     reader.getCode({ address: owner.address }),
     reader.getCode({ address: APP_ACCOUNT_IMPLEMENTATION }),
@@ -50,24 +55,42 @@ export async function ensureAppWalletDelegation(owner: PrivateKeyAccount, chain:
     account: sponsor,
     transport: monadTransport(chain.id),
   });
-  const baseFee = (await reader.getBlock()).baseFeePerGas ?? 0n;
-  const maxFeePerGas = baseFee * 2n + 1_000_000_000n;
-  if (maxFeePerGas > 200_000_000_000n)
-    throw new Error("Network gas price exceeds sponsorship limit");
-  const gas = await reader.estimateGas({
+  const budget = gasBudget((await reader.getBlock()).baseFeePerGas ?? 0n, DELEGATION_GAS_CAP);
+  const gas = productGasLimit(80_000n, DELEGATION_GAS_CAP);
+  const request = await writer.prepareTransactionRequest({
     account: sponsor,
+    chain,
+    type: "eip7702",
     to: owner.address,
     data: "0x",
+    value: 0n,
     authorizationList,
+    gas,
+    maxFeePerGas: budget.maxFeePerGas,
+    maxPriorityFeePerGas: budget.maxPriorityFeePerGas,
   });
-  if (gas > 200_000n) throw new Error("Delegation exceeds sponsorship gas limit");
-  const hash = await writer.sendTransaction({
-    to: owner.address,
-    data: "0x",
-    authorizationList,
-    gas: (gas * 12n) / 10n + 10_000n,
-    maxFeePerGas,
-    maxPriorityFeePerGas: 0n,
+  if (
+    request.chainId !== chain.id ||
+    (request.value ?? 0n) !== 0n ||
+    request.nonce == null ||
+    request.gas == null ||
+    request.maxFeePerGas == null ||
+    request.maxPriorityFeePerGas == null
+  )
+    throw new Error("Invalid delegation transaction");
+  const hash = await writer.sendRawTransaction({
+    serializedTransaction: await sponsor.signTransaction({
+      chainId: chain.id,
+      type: "eip7702",
+      to: owner.address,
+      data: "0x",
+      value: 0n,
+      nonce: request.nonce,
+      gas: request.gas,
+      maxFeePerGas: request.maxFeePerGas,
+      maxPriorityFeePerGas: request.maxPriorityFeePerGas,
+      authorizationList,
+    }),
   });
   const receipt = await reader.waitForTransactionReceipt({ hash, timeout: 30_000 });
   if (

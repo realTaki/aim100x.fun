@@ -22,7 +22,7 @@ See [wallet design and official references](docs/wallet-design.md) for the deriv
 
 **All supported business transactions use the APP wallet on Monad Testnet (10143).** This includes claiming LUSD, subscriptions, tips, image unlocks, NFT minting/buying/listing, pricing, granting/removing Agent roles and TBA withdrawal. APP-wallet ERC-20 approvals are constructed for the exact operation amount. No login-wallet transaction fallback is permitted.
 
-The platform signer supplies the APP wallet's MON gas budget before each business transaction, within the existing **1 testnet MON per APP wallet per UTC day** allowance and fee ceiling. No user MON deposit is required. Exceeding the allowance or losing sponsorship confirmation stops the operation; it does not charge the login wallet or silently use the user's MON. Each business call is bounded to 2,000,000 gas; larger calls are rejected or revert. This is native MON prefunding, not an Alchemy Gas Manager/4337 paymaster integration.
+The platform signer (`PAYMASTER_SIGNER`) delegates each APP wallet with EIP-7702 and submits its testnet operations, paying native gas, within the existing **1 testnet MON per APP wallet per UTC day** allowance and fee ceiling. The APP wallet never receives or spends MON. Exceeding the allowance or losing sponsorship confirmation stops the operation; it does not charge the login wallet. Each inner call is bounded to 2,000,000 gas. This is not an Alchemy Gas Manager integration.
 
 A **one-time LUSD subscription** unlocks chat. Text uses **1 testnet LUSD per message** from the APP wallet to the platform signer, then invokes direct MiniMax China text API. This simulates request billing on testnet; it is not active mainnet USDC x402. Paid images retain their separate quoted LUSD unlock. Mainnet payments and delegation are closed.
 
@@ -40,9 +40,9 @@ The APP wallet owns newly minted/purchased **Idols100x ERC-721** NFTs. Its **ERC
 
 This guide describes current code; offline tests and deployed anonymous-page checks are distinct from authenticated live acceptance.
 
-- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; platform-funded gas within limits; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
+- **Implemented:** external-wallet SIWE, Privy and Mera identity login adapters; independent server-derived APP accounts; APP-signed testnet LUSD and NFT operations; EIP-7702 APP-wallet delegation on Monad testnet with PAYMASTER_SIGNER-sponsored gas; direct MiniMax China text; private Neon/R2 content and authorized MCP content reads/edits.
 - **Recorded verification:** offline login/operation/replay/ownership tests and production anonymous UI/icon smoke. Provider configuration, real passkey ceremonies, database initialization and funded business transactions need live acceptance.
-- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and EIP-7702 delegation remain disabled.
+- **Not implemented:** direct NFT transfers or general wallet transfers in the app; MCP chain-write authorization for an APP account; Privy automatic JWKS fallback. Legacy external-wallet, Passkey and Agent Account transaction writers are disabled. Mainnet RPC, x402 spending and mainnet EIP-7702 delegation remain disabled.
 
 Subscriptions remain part of the product.
 
@@ -67,7 +67,7 @@ Dev uses port 8080. The normal build wrapper loads local configuration; no-secre
 | `WALLET_MASTER_SECRET` | Preserve the original server secret; rotating changes APP addresses. |
 | `AIM100X_DATABASE_URL` | Auth, sessions, durable operations and content. Initialize required tables separately. |
 | `ALCHEMY_MONAD_TESTNET_RPC_URL` | Server-only Alchemy testnet endpoint. No public RPC fallback. |
-| `PAYMASTER_SIGNER` | Platform's testnet MON funding signer and text LUSD recipient. |
+| `PAYMASTER_SIGNER` | Platform signer that submits EIP-7702-sponsored testnet operations and receives text LUSD. |
 | `MINIMAX_CN_API_KEY` | Direct MiniMax China text API. |
 | `PRIVY_APP_ID`, `VITE_PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY` | Matching public App IDs and current server ES256 public PEM verification. |
 | `MERA_RP_ID`, `VITE_MERA_RP_ID` | Matching permanent passkey RP hostname. |

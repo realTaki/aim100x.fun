@@ -2,7 +2,7 @@ import { it } from "node:test";
 import assert from "node:assert/strict";
 import { paidFetch, MONID_RUN_URL } from "../x402-payment.server.ts";
 import { ensureAppWalletDelegation } from "./app-wallet-executor.server.ts";
-import { mainnetWalletChain } from "./app-wallet-chain.ts";
+import { mainnetWalletChain, testnetWalletChain } from "./app-wallet-chain.ts";
 import type { PrivateKeyAccount } from "viem/accounts";
 
 it("blocks mainnet payment and delegation before touching keys, RPC or providers", async () => {
@@ -15,4 +15,6 @@ it("blocks mainnet payment and delegation before touching keys, RPC or providers
   }), /Mainnet spending and delegation are disabled/);
   await assert.rejects(ensureAppWalletDelegation(owner, mainnetWalletChain),
     /Mainnet spending and delegation are disabled/);
+  await assert.rejects(ensureAppWalletDelegation(owner, { ...testnetWalletChain, id: 1 }),
+    /testnet-only/);
 });

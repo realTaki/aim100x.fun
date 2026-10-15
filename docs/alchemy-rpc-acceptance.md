@@ -13,7 +13,7 @@ are preserved. Main remains `ac0730d`; neither Vercel Git deployment block chang
 | Server reads, APP-wallet signed broadcasts, gas funding | Server-only `ALCHEMY_MONAD_TESTNET_RPC_URL` | Exact HTTPS `monad-testnet.g.alchemy.com/v2/<key>`; verifies chain 10143 before each request |
 | MCP chain reads / status | Same server Alchemy transport | Status now reports shared chain constant 10143, replacing obsolete 46630 |
 | Legacy Passkey / MCP UserOperations | Independent Pimlico bundler `https://public.pimlico.io/v2/10143/rpc` | Alchemy JSON-RPC is not a bundler or paymaster service |
-| Testnet APP-wallet gas sponsorship | Existing `PAYMASTER_SIGNER` server signer and Alchemy broadcast | Existing bounded MON prefunding; no Alchemy sponsorship API created |
+| Testnet APP-wallet gas sponsorship | Existing `PAYMASTER_SIGNER` server signer and Alchemy broadcast | EIP-7702 delegation + sponsor-submitted EntryPoint.handleOps; no MON drip; no Alchemy sponsorship API |
 | External wallet broadcasts | User wallet's EIP-1193 provider | Checks 10143 and signer before sending; its own node configuration remains independent of app Alchemy |
 | Mainnet 143 | Rejected by browser/server transport and HTTP RPC proxy | Existing x402 spending and 7702 delegation blocks retained; no mainnet env needed |
 

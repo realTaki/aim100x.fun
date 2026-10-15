@@ -17,6 +17,12 @@ import { planProductAction, type PolicyReader } from "./auth/product-policy.serv
 import { LONELY_USD_ABI, LONELY_USD_FAUCET_AMOUNT } from "./lonely-usd.ts";
 import { minimaxText } from "./minimax-text.server.ts";
 import { gasBudget, sponsorshipId } from "./auth/testnet-gas.server.ts";
+import { APP_ENTRY_POINT } from "./auth/app-wallet-chain.ts";
+import {
+  encodeAccountExecute,
+  encodeHandleOps,
+  packUint128Pair,
+} from "./auth/app-wallet-7702.ts";
 import { pendingTextRequest } from "./text-request.ts";
 const wallet = "0x1111111111111111111111111111111111111111" as Address;
 const recipient = "0x2222222222222222222222222222222222222222" as Address;
@@ -24,15 +30,33 @@ const hash = ("0x" + "33".repeat(32)) as Hex,
   block = ("0x" + "44".repeat(32)) as Hex;
 const id = "11111111-1111-4111-a111-111111111111",
   body = "content-hash";
-function evidence(requestId = id, bodyHash = body): PaymentEvidence {
+function sponsoredPaymentInput(requestId = id, bodyHash = body) {
   const call = textPaymentCall(wallet, recipient, requestId, bodyHash);
+  return encodeHandleOps(
+    [
+      {
+        sender: wallet,
+        nonce: 0n,
+        initCode: "0x",
+        callData: encodeAccountExecute(call),
+        accountGasLimits: packUint128Pair(1n, 21_000n),
+        preVerificationGas: 21_000n,
+        gasFees: packUint128Pair(0n, 0n),
+        paymasterAndData: "0x",
+        signature: "0x",
+      },
+    ],
+    recipient,
+  );
+}
+function evidence(requestId = id, bodyHash = body): PaymentEvidence {
   return {
     chainId: 10143,
     transaction: {
       hash,
-      from: wallet,
-      to: LONELY_USD_ADDRESS,
-      input: call.data,
+      from: recipient,
+      to: APP_ENTRY_POINT,
+      input: sponsoredPaymentInput(requestId, bodyHash),
       value: 0n,
       chainId: 10143,
       blockHash: block,
@@ -40,8 +64,8 @@ function evidence(requestId = id, bodyHash = body): PaymentEvidence {
     receipt: {
       transactionHash: hash,
       status: "success",
-      from: wallet,
-      to: LONELY_USD_ADDRESS,
+      from: recipient,
+      to: APP_ENTRY_POINT,
       blockHash: block,
       logs: [
         {
@@ -217,7 +241,7 @@ it("rejects mainnet, wrong sender/recipient/token/amount/tag, reverted and forge
       e.transaction.chainId = 143;
     },
     (e) => {
-      e.transaction.from = recipient;
+      e.transaction.from = wallet;
     },
     (e) => {
       e.receipt.status = "reverted";
@@ -341,102 +365,19 @@ it("client retries preserve message ID and original context across changed threa
     first.key,
   );
 });
-it("platform funds gas for an empty APP wallet, preserves hash before broadcast and never funds a retry twice", async () => {
-  const { fundTestnetGas } = await import("./auth/testnet-gas.server.ts");
-  let row: (import("./auth/operation-runner.ts").OperationResult & { bodyHash: string }) | null =
-    null;
-  let balance = 0n,
-    locked = false,
-    sends = 0,
-    reserves = 0,
-    value = 0n;
-  const ports: import("./auth/testnet-gas.server.ts").GasPorts = {
-    chainId: async () => 10143,
-    baseFee: async () => 1n,
-    balance: async () => balance,
-    sponsor: recipient,
-    store: (_id, bodyHash) => ({
-      lookup: async () => row,
-      lock: async () => {
-        if (locked) return false;
-        locked = true;
-        return true;
-      },
-      begin: async () => {
-        row = { bodyHash, status: "pending", hashes: [] };
-      },
-      hashes: async (h) => {
-        row!.hashes = h;
-      },
-      status: async (s) => {
-        row!.status = s;
-      },
-      release: async () => {
-        locked = false;
-      },
-    }),
-    reserve: async (to, _id, amount) => {
-      assert.equal(to, wallet);
-      assert.ok(amount > 0n);
-      reserves++;
-    },
-    sign: async (to, amount) => {
-      assert.equal(to, wallet);
-      value = amount;
-      return hash;
-    },
-    send: async () => {
-      assert.deepEqual(row!.hashes, [hash]);
-      balance += value;
-      sends++;
-    },
-    confirmed: async () => true,
-  };
-  const funded = await fundTestnetGas(wallet, id, 0, ports);
-  assert.equal(balance, funded.gas * funded.maxFeePerGas);
-  await fundTestnetGas(wallet, id, 0, ports);
-  assert.equal(sends, 1);
-  assert.equal(reserves, 1);
-  ports.chainId = async () => 143;
-  await assert.rejects(fundTestnetGas(wallet, id, 1, ports), /Wrong sponsorship chain/);
-  assert.equal(sends, 1);
-});
-it("unconfirmed gas funding cannot advance to an APP transaction or be broadcast a second time", async () => {
-  const { fundTestnetGas } = await import("./auth/testnet-gas.server.ts");
-  let row: (import("./auth/operation-runner.ts").OperationResult & { bodyHash: string }) | null =
-      null,
-    sends = 0;
-  const ports: import("./auth/testnet-gas.server.ts").GasPorts = {
-    chainId: async () => 10143,
-    baseFee: async () => 1n,
-    balance: async () => 0n,
-    sponsor: recipient,
-    store: (_id, bodyHash) => ({
-      lookup: async () => row,
-      lock: async () => true,
-      begin: async () => {
-        row = { bodyHash, status: "pending", hashes: [] };
-      },
-      hashes: async (h) => {
-        row!.hashes = h;
-      },
-      status: async (s) => {
-        row!.status = s;
-      },
-      release: async () => {},
-    }),
-    reserve: async () => {},
-    sign: async () => hash,
-    send: async () => {
-      sends++;
-    },
-    confirmed: async () => {
-      throw new Error("lost receipt");
-    },
-  };
-  await assert.rejects(fundTestnetGas(wallet, id, 0, ports), /pending/);
-  await assert.rejects(fundTestnetGas(wallet, id, 0, ports), /pending/);
-  assert.equal(sends, 1);
+it("chat payment receipts must be sponsor handleOps, not an APP-wallet EOA transfer", () => {
+  const good = evidence();
+  verifyTextPayment(good, hash, wallet, recipient, id, body);
+  const leaked = structuredClone(good);
+  leaked.transaction.from = wallet;
+  leaked.receipt.from = wallet;
+  leaked.transaction.to = LONELY_USD_ADDRESS;
+  leaked.receipt.to = LONELY_USD_ADDRESS;
+  leaked.transaction.input = textPaymentCall(wallet, recipient, id, body).data;
+  assert.throws(() => verifyTextPayment(leaked, hash, wallet, recipient, id, body));
+  const chatSrc = readFileSync(new URL("./testnet-chat.server.ts", import.meta.url), "utf8");
+  assert.match(chatSrc, /executeTestnetCalls\(/);
+  assert.doesNotMatch(chatSrc, /fundTestnetGas|sponsorTestnetGas/);
 });
 it("browser-supplied paid flags, sender, amount, chain and transaction hash are rejected", async () => {
   const { textInputSchema } = await import("./testnet-chat.server.ts");
@@ -462,7 +403,7 @@ it("a failed durable receipt write prevents model execution", async () => {
 
 it("NFT gas funding supports a bounded product budget and refuses an invalid budget", () => {
   assert.equal(gasBudget(1n, 2_000_000n).gas, 2_000_000n);
-  for (const gas of [0n, 20_999n, 2_000_001n]) assert.throws(() => gasBudget(1n, gas), /gas limit/);
+  for (const gas of [0n, 20_999n, 2_500_001n]) assert.throws(() => gasBudget(1n, gas), /gas limit/);
   assert.equal(gasBudget(100_000_000_000n, 2_000_000n).maxFeePerGas, 200_000_000_000n);
   assert.throws(() => gasBudget(200_000_000_001n, 2_000_000n), /sponsorship limit/);
 });
