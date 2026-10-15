@@ -33,13 +33,7 @@ export function operationStore(
 ): OperationStore {
   const sql = mediaSql();
   async function applyDecision(
-    row: {
-      body_hash: unknown;
-      status: unknown;
-      hashes: unknown;
-      expected: unknown;
-      created_at?: unknown;
-    },
+    row: Record<string, unknown>,
     id: string,
     requestedBodyHash: string,
   ): Promise<"recovered" | (OperationResult & { bodyHash: string })> {
