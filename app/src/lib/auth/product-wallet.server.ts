@@ -1,5 +1,5 @@
 import { operationStore } from "./operation-store.server.ts";
-import { sponsorTestnetGas, MAX_PRODUCT_GAS } from "./testnet-gas.server.ts";
+import { sponsorTestnetGas, MAX_PRODUCT_GAS, MAX_SPONSORED_FEE } from "./testnet-gas.server.ts";
 import { runProductOperation } from "./operation-runner.ts";
 import { monadTransport } from "../monad-rpc.ts";
 import { createHash } from "node:crypto";
@@ -125,12 +125,10 @@ export async function executeTestnetCalls(
         // Bounded gas for the allowlisted faucet, ERC20 transfer/approval and subscription.
         // Sponsor funds gas before APP signing; users need no testnet MON for these flows.
         await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
-        const gas = await (ports.sponsor ?? sponsorTestnetGas)(
-          account.address,
-          requestId,
-          index++,
-          MAX_PRODUCT_GAS,
-        );
+        const sponsorshipIndex = index++;
+        const gas = ports.sponsor
+          ? await ports.sponsor(account.address, requestId, sponsorshipIndex, MAX_PRODUCT_GAS)
+          : await sponsorTestnetGas(account.address, requestId, sponsorshipIndex, MAX_PRODUCT_GAS);
         const request = await writer.prepareTransactionRequest({
           ...call,
           ...gas,
@@ -140,8 +138,8 @@ export async function executeTestnetCalls(
         });
         if (
           request.chainId !== 10143 ||
-          request.gas > 2_000_000n ||
-          request.maxFeePerGas > 200_000_000_000n
+          request.gas > MAX_PRODUCT_GAS ||
+          request.maxFeePerGas > MAX_SPONSORED_FEE
         )
           throw new Error("Transaction exceeds gas policy");
         const signed = await account.signTransaction(request),

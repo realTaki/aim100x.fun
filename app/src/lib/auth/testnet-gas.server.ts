@@ -35,8 +35,11 @@ export function sponsorAccount() {
 }
 export function gasBudget(baseFee: bigint, gas = SPONSORED_GAS) {
   if (gas < 21_000n || gas > MAX_PRODUCT_GAS) throw new Error("Invalid sponsored gas limit");
-  const maxFeePerGas = baseFee * 2n + 1_000_000_000n;
-  if (maxFeePerGas > MAX_SPONSORED_FEE) throw new Error("Testnet gas exceeds sponsorship limit");
+  // Prefer a 2x+1 gwei buffer, but clamp to the 200 gwei cap so a 100 gwei Monad
+  // testnet base fee can still sponsor instead of aborting every product send.
+  const buffered = baseFee * 2n + 1_000_000_000n;
+  const maxFeePerGas = buffered > MAX_SPONSORED_FEE ? MAX_SPONSORED_FEE : buffered;
+  if (maxFeePerGas < baseFee) throw new Error("Testnet gas exceeds sponsorship limit");
   return { gas, maxFeePerGas, maxPriorityFeePerGas: 0n };
 }
 export function sponsorshipId(wallet: Address, requestId: string, index: number) {
