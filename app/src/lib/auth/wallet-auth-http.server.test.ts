@@ -111,9 +111,10 @@ it('returns explicit challenge config errors and logs the final catch',async()=>
   assert.match((await tableRes.json()).error,/auth:init/);
   assert.ok(logs.some((line)=>line.includes('[wallet-auth]')&&!/postgres:\/\//i.test(line)));
 
-  const logged=await login(dependencies());
+  const prepareDeps=dependencies();
+  const logged=await login(prepareDeps);
   logs.length=0;
-  assert.equal((await handleWalletAuthRequest(req('wallet/prepare',{},logged.cookie),dependencies())).status,503);
+  assert.equal((await handleWalletAuthRequest(req('wallet/prepare',{},logged.cookie),prepareDeps)).status,503);
   assert.ok(logs.some((line)=>line.includes('[wallet-auth]')&&/Mainnet spending/.test(line)));
  }finally{console.error=original;}
 });
