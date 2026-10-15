@@ -12,7 +12,7 @@ Video: [privy-email-probe.mp4](./privy-email-probe.mp4)
 
 Narration: [privy-email-probe-narration.md](./privy-email-probe-narration.md)
 
-Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → **Enter confirmation code**. Stopped there. The Privy sheet shows six empty boxes and **Resend code**; it does not say how long the code stays valid. Waiting on Taki for the code before faucet/subscribe/chat.
+Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy `onComplete` ran; `POST /api/auth/wallet/challenge` `{ provider: "privy" }` returned **503** `Operation unavailable. Check configuration or transaction status before retrying.` A same-origin `{ provider: "wallet" }` challenge also returns that generic 503, so this is not a missing `PRIVY_APP_ID` / login-disabled branch. UI: **Privy sign-in failed. Check configuration or sign in again.** Faucet / subscribe / chat / quick-reply / image did not start. One-time codes are not recorded in the repo.
 
 ## Alchemy
 

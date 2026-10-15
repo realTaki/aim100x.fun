@@ -6,6 +6,6 @@ Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 
 Narration script: [aim100x-product-demo-narration.md](./aim100x-product-demo-narration.md)
 
-Same file as the technical demo video. Current cut stops at the Privy email confirmation code on the live testnet site.
+Same file as the technical demo. Stops after Privy email login when the APP wallet challenge returns 503.
 
 Live product: https://aim100x.fun

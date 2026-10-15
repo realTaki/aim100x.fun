@@ -1,28 +1,26 @@
 # Product / pitch demo — narration
 
-Voice: `edge-tts` `en-US-AndrewNeural` at `+8%` (same recipe as the Alchemy demo). Duration 20s. This is a **partial** recording: login stops at the Privy email code.
+Voice: `edge-tts` `en-US-AndrewNeural` at `+8%`. Duration 28s. Same file as the pitch video.
 
 Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
-
-Same file is the pitch video.
 
 ## Picture
 
 | Time | On screen |
 | --- | --- |
 | 0:00 | Chrome opens |
-| 0:04 | `https://aim100x.fun` lock screen — caption **Unlock** |
-| 0:08 | Privy modal **Log in or sign up** (email / Google / Apple) |
-| 0:16–0:20 | **Enter confirmation code** for `taki@mail.grokbot.com` — six empty boxes, **Resend code**. No expiry shown |
+| 0:04 | `https://aim100x.fun` lock screen — **Unlock** |
+| 0:08 | Privy **Log in or sign up** |
+| 0:16 | **Enter confirmation code** |
+| 0:20–0:28 | **Privy sign-in failed. Check configuration or sign in again.** |
 
-Stopped here. Did not guess a code. Steps not reached: claim faucet (+100 LUSD), subscribe, chat, quick-reply chip, image unlock.
+Code was entered on the live site. Privy accepted the email session. Server `wallet/challenge` returned **503**. Not reached: faucet (+100 LUSD), subscribe, chat, quick-reply chip, image unlock.
 
 ## Voice
 
 | Time | Line |
 | --- | --- |
-| 0:00 | Open aim100x.fun on Monad testnet, then unlock. |
-| 0:04 | Log in with Privy email. |
-| 0:06 | We stop at the confirmation code. |
-| 0:07 | Faucet, subscribe, chat, and image stay blocked until Taki sends that code. |
-| 0:12 | The prompt does not say how long it stays valid. |
+| 0:00 | Open aim100x.fun on Monad testnet, unlock, and log in with Privy email. |
+| 0:06 | The confirmation code is entered. |
+| 0:08 | Privy accepts it, then the APP wallet challenge returns 503. |
+| 0:12 | Faucet, subscribe, chat, and image stay blocked on that server error. |
