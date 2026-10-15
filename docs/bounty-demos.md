@@ -18,6 +18,10 @@ Narration script: [alchemy-bounty-demo-narration.md](./alchemy-bounty-demo-narra
 
 ## Mera: One Passkey, Many Keys
 
-Video: _coming soon_
+Video: [mera-bounty-demo.mp4](./mera-bounty-demo.mp4) (1:36, English narration)
+
+Narration script: [mera-bounty-demo-narration.md](./mera-bounty-demo-narration.md)
+
+This is a code walkthrough of PRF, RP domain, and the sign-in path. A live PRF passkey ceremony is not possible in cloud Chrome (no platform authenticator PRF; virtual authenticators return none).
 
 Live product: https://aim100x.fun
