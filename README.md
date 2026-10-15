@@ -1,5 +1,11 @@
 # aim100x.fun
 
+## Demo (Monad Metropolis)
+
+- [Product demo video](docs/aim100x-product-demo.mp4) (~2–3 min)
+- Live: https://aim100x.fun
+- More clips: [docs/demo-video.md](docs/demo-video.md), [docs/bounty-demos.md](docs/bounty-demos.md)
+
 Discover AI idols, chat through text and voice, or create a character with its own personality and scenes. aim100x.fun combines AI roleplay with NFT ownership on Monad: fans subscribe to idols, and creators shape their content, set prices, and receive payments.
 
 - **Fans:** subscribe to idols and open private conversations.
