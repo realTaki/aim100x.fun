@@ -12,7 +12,7 @@ Video: [privy-email-probe.mp4](./privy-email-probe.mp4)
 
 Narration: [privy-email-probe-narration.md](./privy-email-probe-narration.md)
 
-Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy passwordless authenticate and `onComplete` succeeded. `POST /api/auth/wallet/challenge` `{ provider: "privy" }` now returns **200**. `POST /api/auth/wallet/verify` returns **401** `Login proof invalid, expired, replayed, or account unavailable` (generic inner catch; not a missing challenge cookie / not the 503 store-init path). UI: **Privy sign-in failed. Check configuration or sign in again.** Faucet / subscribe / chat / quick-reply / image did not start. One-time codes are not recorded in the repo.
+Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. Privy passwordless authenticate and `onComplete` succeeded. `POST /api/auth/wallet/challenge` `{ provider: "privy" }` returns **200**. After PR #7 (JWKS verify fallback, Production commit `1c7321b` READY), `POST /api/auth/wallet/verify` succeeds and mints an APP session (`get-session` **200**, provider `privy`, APP wallet `0xc956…fd93`). Plaza opens after PIN setup. Faucet / subscribe confirms fire next; `wallet/send` then **503** because Production `ALCHEMY_MONAD_TESTNET_RPC_URL` is unset (`/api/rpc` error `-32001`). One-time codes are not recorded in the repo.
 
 ## Alchemy
 
