@@ -28,7 +28,10 @@ describe("agent-facing /docs", () => {
 
   it("keeps README and /docs aligned on current behavior and implementation status", () => {
     const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
-    assert.equal(PRODUCT_DOCS.split("\n\n")[1], readme.split("\n\n")[1]);
+    // README may lead with demo/navigation sections before the product introduction.
+    const introduction = (text: string) => text.split(/\r?\n\r?\n/).find(paragraph => paragraph.startsWith("Discover AI idols,"));
+    assert.ok(introduction(PRODUCT_DOCS), "Product introduction must remain present");
+    assert.equal(introduction(PRODUCT_DOCS), introduction(readme));
     const status = (text: string) => text.split("## Implementation status\n\n")[1]?.split("\n\nSubscriptions remain")[0];
     assert.ok(status(PRODUCT_DOCS));
     assert.equal(status(PRODUCT_DOCS), status(readme));
