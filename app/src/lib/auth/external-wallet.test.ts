@@ -168,6 +168,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
         type: "0x2",
       };
     } else if (rpc.method === "eth_blockNumber") result = "0x1";
+    else if (rpc.method === "eth_getCode") result = "0x";
     else assert.fail(`Unexpected RPC ${rpc.method}`);
     return Response.json({ jsonrpc: "2.0", id: 1, result });
   });
@@ -256,5 +257,13 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       executeTestnetCalls({ ...user, walletAddress: wallet }, "wrong", "body", plan, ports),
       /Wallet derivation changed/,
     );
+    record = null;
+    sponsorships = 0;
+    const batched = await executeTestnetCalls(user, "image-batch", "image-body", plan, ports, {
+      batch: true,
+    });
+    assert.equal(batched.status, "confirmed");
+    assert.equal(batched.hashes.length, 1);
+    assert.equal(sponsorships, 1);
   }
 });

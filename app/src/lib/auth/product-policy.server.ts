@@ -70,7 +70,14 @@ export async function planProductAction(raw: unknown, wallet: Address, reader: P
     case "image": {
       const result = await reader.image(a.imageId, a.paymentIntent);
       amount.parse(result.amount);
-      return result.calls.map(c => ({ ...c, value: 0n }));
+      const calls = result.calls.map(c => ({ to: getAddress(c.to), data: c.data, value: 0n }));
+      if (
+        calls.length !== 2 ||
+        calls[0].to.toLowerCase() !== LONELY_USD_ADDRESS.toLowerCase() ||
+        calls[1].to.toLowerCase() !== IDOLS100X_ADDRESS.toLowerCase() ||
+        BigInt(result.amount) <= 0n
+      ) throw new Error("Invalid image payment");
+      return calls;
     }
   }
 }
