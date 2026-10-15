@@ -1,11 +1,11 @@
 import type { Hex } from "viem";
 import type { OperationResult } from "./operation-runner.ts";
 
-/** Monad local mempools drop unincluded txs after a few leader rounds (~seconds). */
+/** Diagnostic age only: elapsed time never proves a transaction safe to replay. */
 export const STALE_OPERATION_MS = 60_000;
 
-export type ReceiptStatus = "success" | "reverted" | null;
-export type StoredDecision = "return" | "confirm" | "fail" | "recover" | "mismatch";
+export type ReceiptStatus = "success" | "reverted" | "unavailable" | null;
+export type StoredDecision = "return" | "confirm" | "fail" | "mismatch";
 
 export function createdAtMs(value: unknown): number {
   if (value instanceof Date) {
@@ -23,7 +23,7 @@ export function isStaleOperation(createdAt: unknown, now = Date.now()): boolean 
   return now - createdAtMs(createdAt) >= STALE_OPERATION_MS;
 }
 
-/** Missing timestamps (pre-migration rows) are treated as already stale. */
+/** Keep every request and hash. Unknown or partial execution requires reconciliation. */
 export function decideStoredOperation(input: {
   status: OperationResult["status"];
   bodyHash: string;
@@ -35,21 +35,16 @@ export function decideStoredOperation(input: {
   now?: number;
 }): StoredDecision {
   if (input.bodyHash !== input.requestedBodyHash) return "mismatch";
-  if (input.status === "failed" && input.hashes.length === 0) return "recover";
   if (input.status !== "pending") return "return";
-  const now = input.now ?? Date.now();
-  if (input.hashes.length === input.expected && input.hashes.length > 0) {
-    const receipts = input.receipts ?? [];
-    if (receipts.length === input.hashes.length && receipts.every(Boolean))
-      return receipts.every((status) => status === "success") ? "confirm" : "fail";
-    if (
-      receipts.length === input.hashes.length &&
-      receipts.every((status) => status == null) &&
-      isStaleOperation(input.createdAt, now)
-    )
-      return "recover";
-    return "return";
-  }
-  if (isStaleOperation(input.createdAt, now)) return "recover";
+  const receipts = input.receipts ?? [];
+  // A live writer may still be processing the next call. Partial receipts must
+  // neither release its lock nor cause already completed calls to run again.
+  if (
+    input.expected > 0 &&
+    input.hashes.length === input.expected &&
+    receipts.length === input.hashes.length &&
+    receipts.every((status) => status === "success" || status === "reverted")
+  )
+    return receipts.every((status) => status === "success") ? "confirm" : "fail";
   return "return";
 }

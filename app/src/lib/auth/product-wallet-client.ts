@@ -20,11 +20,13 @@ export async function executeProductAction(action: ProductAction): Promise<Hex> 
     localStorage.removeItem(key);
     return result.hashes[result.hashes.length - 1];
   }
-  if (result.status === "failed") localStorage.removeItem(key);
+  if (result.status === "failed" && !result.hashes.length) localStorage.removeItem(key);
   throw new Error(
     result.status === "pending"
       ? `Operation pending review (${requestId}). Do not pay again. ${result.hashes.join(" ")}`
-      : "Operation failed before submission. Check APP wallet LUSD and platform gas allowance.",
+      : result.hashes.length
+        ? `Operation failed after submission (${requestId}). Review all transactions before paying again. ${result.hashes.join(" ")}`
+        : "Operation failed before submission. Check APP wallet LUSD and platform gas allowance.",
   );
 }
 export function productConfirmation(a: ProductAction) {

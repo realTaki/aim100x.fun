@@ -18,7 +18,7 @@ it("treats missing timestamps and epoch rows as already stale", () => {
   assert.equal(isStaleOperation(new Date(now - STALE_OPERATION_MS + 1), now), false);
 });
 
-it("recovers a failed empty row immediately and a dropped pending row after the TTL", () => {
+it("retains failed and pending rows regardless of age or missing hashes", () => {
   assert.equal(
     decideStoredOperation({
       status: "failed",
@@ -29,7 +29,7 @@ it("recovers a failed empty row immediately and a dropped pending row after the 
       createdAt: new Date(now),
       now,
     }),
-    "recover",
+    "return",
   );
   assert.equal(
     decideStoredOperation({
@@ -55,7 +55,7 @@ it("recovers a failed empty row immediately and a dropped pending row after the 
       receipts: [null],
       now,
     }),
-    "recover",
+    "return",
   );
   assert.equal(
     decideStoredOperation({
@@ -67,7 +67,7 @@ it("recovers a failed empty row immediately and a dropped pending row after the 
       createdAt: new Date(now - STALE_OPERATION_MS),
       now,
     }),
-    "recover",
+    "return",
   );
 });
 

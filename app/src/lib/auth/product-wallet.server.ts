@@ -135,7 +135,7 @@ export async function executeTestnetCalls(
         reader
           .getTransactionReceipt({ hash })
           .then((r) => r.status)
-          .catch(() => null),
+          .catch(() => "unavailable" as const),
       ),
     {
       async sign(call) {

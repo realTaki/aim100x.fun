@@ -20,18 +20,11 @@ it('lost receipts retain the lock and repeated requests never pay twice',async()
  assert.equal((await runProductOperation('body',async()=>[1],f.store,f.chain)).status,'pending');
  assert.equal(f.sends(),1);assert.equal(f.locked(),true);
 });
-it('a recovered stale pending row can sign and send once without paying twice while live',async()=>{
- const f=fixture();f.chain.confirmed=async()=>{throw new Error('timeout');};
- assert.equal((await runProductOperation('body',async()=>[1],f.store,f.chain)).status,'pending');
- assert.equal(f.sends(),1);assert.equal(f.locked(),true);
- const originalLookup=f.store.lookup;
- f.store.lookup=async()=>null;
- await f.store.release();
- assert.equal((await runProductOperation('body',async()=>[1],f.store,f.chain)).status,'pending');
- assert.equal(f.sends(),2);assert.equal(f.locked(),true);
- f.store.lookup=originalLookup;
- assert.equal((await runProductOperation('body',async()=>[1],f.store,f.chain)).status,'pending');
- assert.equal(f.sends(),2);
+it('retains known failed requests without replanning',async()=>{
+ const f=fixture();f.chain.sign=async()=>{throw new Error('revoked');};
+ assert.equal((await runProductOperation('body',async()=>[1],f.store,f.chain)).status,'failed');
+ assert.equal((await runProductOperation('body',async()=>{throw new Error('must not plan');},f.store,f.chain)).status,'failed');
+ assert.equal(f.sends(),0);
 });
 it('does not broadcast if durable hash storage fails, or if session/signing fails',async()=>{
  const f=fixture();f.store.hashes=async()=>{throw new Error('db unavailable');};
