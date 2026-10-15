@@ -27,6 +27,29 @@ function json(body: unknown, status = 200, cookies: string[] = []) {
   for (const c of cookies) headers.append("Set-Cookie", c);
   return new Response(JSON.stringify(body), { status, headers });
 }
+function pgCode(error: unknown) {
+  return error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
+}
+/** Log name/message/code only. Never print secrets, connection strings, or challenge tokens. */
+function logWalletAuthError(error: unknown) {
+  const err = error instanceof Error ? error : new Error(String(error));
+  console.error("[wallet-auth]", err.name, err.message.replace(/\S+:\/\/\S+/g, "[redacted]"), pgCode(error));
+}
+function challengeStoreConfigResponse(error: unknown) {
+  logWalletAuthError(error);
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("AIM100X_DATABASE_URL"))
+    return json({ error: "AIM100X_DATABASE_URL is required for login challenges" }, 503);
+  if (pgCode(error) === "42P01" || /aim_auth_challenges|does not exist/i.test(message))
+    return json(
+      { error: "Login challenge table is missing. Run npm run auth:init against the production database." },
+      503,
+    );
+  return json(
+    { error: "Login challenge storage is unavailable. Confirm AIM100X_DATABASE_URL and initialize auth tables." },
+    503,
+  );
+}
 function cookie(request: Request, name: string) {
   return (
     request.headers
@@ -115,11 +138,22 @@ export async function handleWalletAuthRequest(
           statement: `Sign in to aim100x.fun using ${provider}. This identity has its own independent server-controlled APP wallet. This signature is for login only.`,
         });
       }
-      await store.challenge(
-        nonce,
-        digest(JSON.stringify([provider, issuer, message])),
-        Date.now() + 300_000,
-      );
+      try {
+        await store.challenge(
+          nonce,
+          digest(JSON.stringify([provider, issuer, message])),
+          Date.now() + 300_000,
+        );
+      } catch (error) {
+        return challengeStoreConfigResponse(error);
+      }
+      let signingKey: ReturnType<typeof sessionSigningKey>;
+      try {
+        signingKey = sessionSigningKey();
+      } catch (error) {
+        logWalletAuthError(error);
+        return json({ error: "WALLET_MASTER_SECRET is not configured as a 32-byte hex secret" }, 503);
+      }
       const token = await new SignJWT({ provider, issuer, message })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuer("aim100x.fun/login-challenge/v2")
@@ -127,7 +161,7 @@ export async function handleWalletAuthRequest(
         .setJti(nonce)
         .setIssuedAt()
         .setExpirationTime("5m")
-        .sign(sessionSigningKey());
+        .sign(signingKey);
       return json({ message, provider }, 200, [challengeCookie(token)]);
     }
     if (path === "wallet/verify" && request.method === "POST") {
@@ -236,6 +270,7 @@ export async function handleWalletAuthRequest(
     }
     return json({ error: "Not found" }, 404);
   } catch (error) {
+    logWalletAuthError(error);
     if (error instanceof Error && error.message === "Sign in again before a sensitive operation")
       return json({ error: error.message }, 401);
     return json(
