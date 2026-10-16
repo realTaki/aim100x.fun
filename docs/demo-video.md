@@ -6,6 +6,6 @@ Video: [aim100x-product-demo.mp4](./aim100x-product-demo.mp4)
 
 Narration script: [aim100x-product-demo-narration.md](./aim100x-product-demo-narration.md)
 
-Same file as the pitch video. Live https://aim100x.fun after PR #13 (chips + photos, Production `d0877dc`) and PR #12 (`41ea8f0`): open site → Privy session → profile **97 LUSD** → Natalie chat → tap a `.lf-draft-chip` → tap a photo-ask chip → paid **Unlock photo** card. Image unlock `wallet/send` returned `{status:"failed", hashes:[]}`.
+Same file as the pitch video. Live https://aim100x.fun after PR #18 (photo unlock via 7702 `executeBatch`, Production `ba8aa28`): open site → Privy session → profile **95 LUSD** → Natalie chat → tap a `.lf-draft-chip` → ask for a selfie → paid **Unlock photo** → sponsor `handleOps` `0xf422…2fc1` confirms and the photo opens.
 
 Live product: https://aim100x.fun
