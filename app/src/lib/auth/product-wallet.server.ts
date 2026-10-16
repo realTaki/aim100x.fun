@@ -21,6 +21,7 @@ import { APP_ENTRY_POINT, testnetWalletChain } from "./app-wallet-chain.ts";
 import {
   ENTRY_POINT_ABI,
   encodeAccountExecute,
+  encodeAccountExecuteBatch,
   encodeHandleOps,
   packUint128Pair,
   userOperationTypedData,
@@ -96,7 +97,7 @@ export async function executeProductRequest(user: SessionUser, raw: unknown) {
       image: (imageId, ticket) =>
         prepareImagePayment(account.address.toLowerCase(), account.address, imageId, ticket),
     });
-  return executeTestnetCalls(user, requestId, hashBody, plan);
+  return executeTestnetCalls(user, requestId, hashBody, plan, {}, { batch: action.kind === "image" });
 }
 
 export async function executeTestnetCalls(
@@ -110,6 +111,7 @@ export async function executeTestnetCalls(
     delegate?: typeof ensureAppWalletDelegation;
     reserve?: typeof reserveSponsoredGas;
   } = {},
+  opts: { batch?: boolean } = {},
 ) {
   const account = boundAppWallet(user).account;
   const sponsor = sponsorAccount();
@@ -127,9 +129,15 @@ export async function executeTestnetCalls(
   });
   const signedRequests = new Map<Hex, Hex>();
   let index = 0;
+  const planned = async () => {
+    const calls = await plan();
+    if (!opts.batch || calls.length < 2) return calls;
+    // Photo unlock is approve + tagged pay. One UserOp so preflight has allowance.
+    return [{ to: account.address, value: 0n, data: encodeAccountExecuteBatch(calls) }];
+  };
   return runProductOperation(
     bodyHash,
-    plan,
+    planned,
     ports.store ??
       operationStore(user.id, requestId, bodyHash, (hash) =>
         reader
@@ -141,13 +149,16 @@ export async function executeTestnetCalls(
       async sign(call) {
         if (!(await (ports.active ?? authStore.active)(user.sessionId, user.id)))
           throw new Error("Session revoked");
-        await reader.call({ account: account.address, ...call, gas: MAX_PRODUCT_GAS });
-        await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
+        const batched = opts.batch && call.to.toLowerCase() === account.address.toLowerCase();
+        const inner = batched
+          ? { account: account.address, to: account.address, data: call.data, value: 0n }
+          : { account: account.address, ...call };
+        if (batched) await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
+        await reader.call({ ...inner, gas: MAX_PRODUCT_GAS });
+        if (!batched) await (ports.delegate ?? ensureAppWalletDelegation)(account, testnetWalletChain);
         let innerGas: bigint;
         try {
-          innerGas = productGasLimit(
-            await reader.estimateGas({ account: account.address, ...call }),
-          );
+          innerGas = productGasLimit(await reader.estimateGas(inner));
         } catch {
           innerGas = SPONSORED_GAS;
         }
@@ -171,7 +182,7 @@ export async function executeTestnetCalls(
           sender: account.address,
           nonce,
           initCode: "0x" as Hex,
-          callData: encodeAccountExecute(call),
+          callData: batched ? call.data : encodeAccountExecute(call),
           accountGasLimits: packUint128Pair(SPONSORED_VERIFICATION_GAS, innerGas),
           preVerificationGas: SPONSORED_PRE_VERIFICATION_GAS,
           // Zero UserOp fees: the APP wallet never pays native gas. The sponsor's

@@ -6,6 +6,7 @@ import { APP_ACCOUNT_IMPLEMENTATION, APP_ENTRY_POINT } from "./app-wallet-chain.
 import {
   appWalletDelegationCode,
   encodeAccountExecute,
+  encodeAccountExecuteBatch,
   encodeHandleOps,
   packUint128Pair,
   sponsoredCallFromHandleOps,
@@ -45,6 +46,42 @@ it("packs 7702 delegation code, execute calldata and handleOps for a sponsored i
   assert.equal(sponsoredCallFromHandleOps(inner.data), null);
   assert.throws(() => packUint128Pair(-1n, 0n), /packed gas/);
   assert.throws(() => packUint128Pair(1n << 128n, 0n), /packed gas/);
+});
+
+it("round-trips executeBatch and preserves extra inner calldata on the last call", () => {
+  const tagged = ("0xdead" + "ab".repeat(32)) as Hex;
+  const batch = encodeAccountExecuteBatch([
+    { to: target, value: 0n, data: "0x01" },
+    { to: sender, value: 0n, data: tagged },
+  ]);
+  const userOp = {
+    sender,
+    nonce: 0n,
+    initCode: "0x" as Hex,
+    callData: batch,
+    accountGasLimits: packUint128Pair(1n, 21_000n),
+    preVerificationGas: 21_000n,
+    gasFees: packUint128Pair(0n, 0n),
+    paymasterAndData: "0x" as Hex,
+    signature: "0x" as Hex,
+  };
+  const decoded = sponsoredCallFromHandleOps(encodeHandleOps([userOp], sponsor));
+  assert.deepEqual(decoded, {
+    sender,
+    to: sender,
+    value: 0n,
+    data: tagged,
+    beneficiary: sponsor,
+  });
+  assert.throws(() => encodeAccountExecuteBatch([{ to: target, value: 0n, data: "0x" }]), /Batch/);
+  assert.throws(
+    () =>
+      encodeAccountExecuteBatch([
+        { to: target, value: 0n, data: "0x01" },
+        { to: target, value: 1n, data: "0x" },
+      ]),
+    /Native value/,
+  );
 });
 
 it("signs the EntryPoint v0.8 PackedUserOperation typed data with the APP wallet key", async () => {

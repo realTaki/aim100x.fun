@@ -3,16 +3,18 @@ import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import {
   createPublicClient,
+  decodeEventLog,
   encodeFunctionData,
   erc20Abi,
-  http,
   keccak256,
   stringToHex,
   type Address,
   type Hex,
 } from "viem";
 import { sessionSigningKey } from "./auth/app-wallet.server.ts";
-import { testnetWalletChain } from "./auth/app-wallet-chain.ts";
+import { APP_ENTRY_POINT, testnetWalletChain } from "./auth/app-wallet-chain.ts";
+import { sponsoredCallFromHandleOps } from "./auth/app-wallet-7702.ts";
+import { sponsorAccount } from "./auth/testnet-gas.server.ts";
 import {
   IDOLS100X_ADDRESS,
   IDOLS100X_CHAIN_ID,
@@ -118,35 +120,76 @@ export async function prepareImagePayment(
   await available(p.imageId, p.tokenId);
   return { calls: imagePaymentCalls(p), amount: p.amount };
 }
-/** Read-only confirmation: the server never submits NFT, tip or image payments. */
+function same(a: string | null | undefined, b: string) {
+  return a?.toLowerCase() === b.toLowerCase();
+}
+function imagePaymentTransferred(
+  logs: readonly { address: Address; data: Hex; topics: readonly Hex[]; removed?: boolean }[],
+  wallet: Address,
+  amount: string,
+) {
+  const transfers = logs.filter((log) => {
+    if (!same(log.address, LONELY_USD_ADDRESS) || log.removed) return false;
+    try {
+      const event = decodeEventLog({
+        abi: erc20Abi,
+        eventName: "Transfer",
+        data: log.data,
+        topics: log.topics as [Hex, ...Hex[]],
+      });
+      return same(event.args.from, wallet) && event.args.value === BigInt(amount);
+    } catch {
+      return false;
+    }
+  });
+  return transfers.length === 1;
+}
+/** Confirm a sponsor-submitted 7702 handleOps whose inner call is this checkout's tagged pay(). */
 export async function settleImagePayment(
   userId: string,
   wallet: Address,
   imageId: string,
   ticket: string,
   hash: Hex,
-  deps = { reader: imagePaymentReader, available: requireAvailablePaymentImage },
+  deps: {
+    reader?: typeof imagePaymentReader;
+    available?: typeof requireAvailablePaymentImage;
+    sponsor?: () => Address;
+  } = {},
 ) {
   if (!/^0x[a-f0-9]{64}$/i.test(hash)) throw new Error("Invalid payment transaction");
   const p = await verifyImagePayment(ticket, userId, imageId, wallet);
-  const reader = deps.reader();
+  const reader = (deps.reader ?? imagePaymentReader)();
+  const available = deps.available ?? requireAvailablePaymentImage;
+  const sponsor = (deps.sponsor ?? (() => sponsorAccount().address))();
   if ((await reader.getChainId()) !== IDOLS100X_CHAIN_ID)
     throw new Error("Payment RPC chain mismatch");
   const [tx, receipt] = await Promise.all([
     reader.getTransaction({ hash }),
     reader.getTransactionReceipt({ hash }),
   ]);
+  const inner = sponsoredCallFromHandleOps(tx.input);
+  const pay = imagePaymentCalls(p)[1];
   if (
     receipt.status !== "success" ||
     !tx.blockNumber ||
     tx.blockNumber < BigInt(p.fromBlock) ||
-    tx.from.toLowerCase() !== wallet.toLowerCase() ||
-    tx.to?.toLowerCase() !== IDOLS100X_ADDRESS.toLowerCase() ||
+    (tx.chainId != null && tx.chainId !== IDOLS100X_CHAIN_ID) ||
+    !same(tx.from, sponsor) ||
+    !same(receipt.from, sponsor) ||
+    !same(tx.to, APP_ENTRY_POINT) ||
+    !same(receipt.to, APP_ENTRY_POINT) ||
     tx.value !== 0n ||
-    tx.input.toLowerCase() !== imagePaymentCalls(p)[1].data.toLowerCase()
+    !inner ||
+    !same(inner.sender, wallet) ||
+    !same(inner.beneficiary, sponsor) ||
+    !same(inner.to, IDOLS100X_ADDRESS) ||
+    inner.value !== 0n ||
+    !same(inner.data, pay.data) ||
+    !imagePaymentTransferred(receipt.logs ?? [], wallet, p.amount)
   )
     throw new Error("Payment does not match this photo checkout");
-  await deps.available(p.imageId, p.tokenId);
+  await available(p.imageId, p.tokenId);
   const access = await new SignJWT({ imageId: p.imageId, wallet: wallet.toLowerCase() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(issuer)
