@@ -12,7 +12,7 @@ Video: [privy-email-probe.mp4](./privy-email-probe.mp4)
 
 Narration: [privy-email-probe-narration.md](./privy-email-probe-narration.md)
 
-Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. After PR #7, `wallet/verify` mints an APP session (`0xc956…fd93`). After PR #11 (EIP-7702 sponsorship, Production `57c4204`), faucet `wallet/send` returns `{status:"confirmed", hashes:[0x1071…27ae]}`: sponsor `handleOps` to EntryPoint `0x4337…f108`, receipt `0x1`, LUSD **0 → 100**. Subscribe Natalie confirmed with two `handleOps` hashes; LUSD **100 → 99**. After PR #13 (Production `d0877dc` / HTML `index-Ddl7Bp4q.js`) MiniMax returns `.lf-draft-chip` bubbles; tapping **刚洗完澡？发张照片看看** attaches a paid **Unlock photo / 1 LUSD** card. Unlock `wallet/send` `{status:"failed", hashes:[]}`. One-time codes are not recorded in the repo.
+Live https://aim100x.fun **Continue with Privy** → email `taki@mail.grokbot.com` → confirmation code entered. After PR #7, `wallet/verify` mints an APP session (`0xc956…fd93`). After PR #11 (EIP-7702 sponsorship, Production `57c4204`), faucet `wallet/send` returns `{status:"confirmed", hashes:[0x1071…27ae]}`: sponsor `handleOps` to EntryPoint `0x4337…f108`, receipt `0x1`, LUSD **0 → 100**. Subscribe Natalie confirmed with two `handleOps` hashes; LUSD **100 → 99**. After PR #13 (Production `d0877dc` / HTML `index-Ddl7Bp4q.js`) MiniMax returns `.lf-draft-chip` bubbles. After PR #18 (Production `ba8aa28`) tapping **头发还是湿的吗** then asking **发一张自拍** attaches a paid **Unlock photo / 1 LUSD** card; unlock `wallet/send` `{status:"confirmed", hashes:[0xf422…2fc1]}` and the photo opens. One-time codes are not recorded in the repo.
 
 ## Alchemy
 
