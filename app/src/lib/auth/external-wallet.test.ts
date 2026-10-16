@@ -80,7 +80,7 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
   const { parseTransaction, recoverTransactionAddress, keccak256 } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
   const { APP_ENTRY_POINT } = await import("./app-wallet-chain.ts");
-  const { sponsoredCallFromHandleOps } = await import("./app-wallet-7702.ts");
+  const { sponsoredCallsFromHandleOps } = await import("./app-wallet-7702.ts");
   const estimatedGas = 200_000n;
   const sponsorKey = ("0x" + "22".repeat(32)) as Hex;
   const sponsor = privateKeyToAccount(sponsorKey);
@@ -139,7 +139,10 @@ it("wallet, Privy and Mera APP accounts execute via sponsor-submitted 7702 handl
       assert.equal(tx.to?.toLowerCase(), APP_ENTRY_POINT.toLowerCase());
       assert.equal(tx.value ?? 0n, 0n);
       assert.ok((tx.maxPriorityFeePerGas ?? 0n) > 0n);
-      const inner = sponsoredCallFromHandleOps(tx.data!);
+      const execution = sponsoredCallsFromHandleOps(tx.data!);
+      assert.ok(execution);
+      assert.ok(execution.calls.every(call => call.to.toLowerCase() === wallet && call.value === 0n));
+      const inner = { sender: execution.sender, beneficiary: execution.beneficiary, ...execution.calls[execution.calls.length - 1] };
       assert.ok(inner);
       assert.equal(inner.sender.toLowerCase(), expected.toLowerCase());
       assert.equal(inner.to.toLowerCase(), wallet);
