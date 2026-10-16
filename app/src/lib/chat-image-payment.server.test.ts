@@ -13,10 +13,24 @@ import {
   ImageUnavailableError,
   requireAvailablePaymentImage,
 } from "./chat-image-availability.server.ts";
-import { IDOLS100X_ADDRESS, IDOLS100X_CHAIN_ID } from "./idols100x.ts";
-import type { Address, Hex } from "viem";
+import { IDOLS100X_ADDRESS, IDOLS100X_CHAIN_ID, LONELY_USD_ADDRESS } from "./idols100x.ts";
+import { APP_ENTRY_POINT } from "./auth/app-wallet-chain.ts";
+import {
+  encodeAccountExecute,
+  encodeAccountExecuteBatch,
+  encodeHandleOps,
+  packUint128Pair,
+} from "./auth/app-wallet-7702.ts";
+import {
+  encodeAbiParameters,
+  encodeEventTopics,
+  erc20Abi,
+  type Address,
+  type Hex,
+} from "viem";
 const wallet = "0x1111111111111111111111111111111111111111" as Address;
 const other = "0x2222222222222222222222222222222222222222" as Address;
+const sponsor = "0x3333333333333333333333333333333333333333" as Address;
 const id = "12345678-1234-1234-1234-123456789abc";
 const hash = `0x${"ab".repeat(32)}` as Hex;
 async function setup(t: TestContext) {
@@ -60,27 +74,79 @@ it("checks the fresh image before returning external approval/payment calls", as
     /authorization/,
   );
 });
-it("unlocks only a successful external-wallet transaction bound to this exact checkout; reconfirmation never pays again", async (t) => {
+function transferLog(amount: bigint) {
+  return {
+    address: LONELY_USD_ADDRESS,
+    data: encodeAbiParameters([{ type: "uint256" }], [amount]),
+    topics: encodeEventTopics({
+      abi: erc20Abi,
+      eventName: "Transfer",
+      args: { from: wallet, to: other },
+    }) as Hex[],
+  };
+}
+function sponsoredImageInput(
+  payment: Awaited<ReturnType<typeof verifyImagePayment>>,
+  mode: "batch" | "execute" = "batch",
+) {
+  const calls = imagePaymentCalls(payment).map((call) => ({ ...call, value: 0n }));
+  const callData =
+    mode === "batch"
+      ? encodeAccountExecuteBatch(calls)
+      : encodeAccountExecute(calls[1]);
+  return encodeHandleOps(
+    [
+      {
+        sender: wallet,
+        nonce: 0n,
+        initCode: "0x",
+        callData,
+        accountGasLimits: packUint128Pair(1n, 21_000n),
+        preVerificationGas: 21_000n,
+        gasFees: packUint128Pair(0n, 0n),
+        paymasterAndData: "0x",
+        signature: "0x",
+      },
+    ],
+    sponsor,
+  );
+}
+it("unlocks only a successful sponsor handleOps bound to this exact checkout; reconfirmation never pays again", async (t) => {
   const { ticket, payment } = await setup(t);
-  const tx = {
-    from: wallet,
-    to: IDOLS100X_ADDRESS,
+  const tx: {
+    from: Address;
+    to: Address;
+    value: bigint;
+    input: Hex;
+    blockNumber: bigint;
+    chainId: number;
+  } = {
+    from: sponsor,
+    to: APP_ENTRY_POINT,
     value: 0n,
-    input: imagePaymentCalls(payment)[1].data,
+    input: sponsoredImageInput(payment),
     blockNumber: 101n,
+    chainId: IDOLS100X_CHAIN_ID,
   };
   let status = "success";
   const reader = () =>
     ({
       getChainId: async () => IDOLS100X_CHAIN_ID,
       getTransaction: async () => tx,
-      getTransactionReceipt: async () => ({ status }),
+      getTransactionReceipt: async () => ({
+        status,
+        from: tx.from,
+        to: tx.to,
+        logs: [transferLog(1_000_000n)],
+      }),
     }) as unknown as ReturnType<typeof imagePaymentReader>;
-  const deps = { reader, available: async () => {} };
+  const deps = { reader, available: async () => {}, sponsor: () => sponsor };
   const result = await settleImagePayment(wallet, wallet, id, ticket, hash, deps);
   const access = new URL(result.imageUrl, "https://aim100x.fun").searchParams.get("access");
   assert.equal(await verifyImageAccess(access, wallet, wallet, id), true);
   assert.equal(await verifyImageAccess(access, other, other, id), false);
+  await settleImagePayment(wallet, wallet, id, ticket, hash, deps);
+  tx.input = sponsoredImageInput(payment, "execute");
   await settleImagePayment(wallet, wallet, id, ticket, hash, deps);
   const another = await issueImagePayment(wallet, {
     ...payment,
@@ -90,12 +156,16 @@ it("unlocks only a successful external-wallet transaction bound to this exact ch
     settleImagePayment(wallet, wallet, "22345678-1234-1234-1234-123456789abc", another, hash, deps),
     /does not match/,
   );
-  tx.from = other;
+  tx.from = wallet;
+  tx.to = IDOLS100X_ADDRESS;
+  tx.input = imagePaymentCalls(payment)[1].data;
   await assert.rejects(
     settleImagePayment(wallet, wallet, id, ticket, hash, deps),
     /does not match/,
   );
-  tx.from = wallet;
+  tx.from = sponsor;
+  tx.to = APP_ENTRY_POINT;
+  tx.input = sponsoredImageInput(payment);
   status = "reverted";
   await assert.rejects(
     settleImagePayment(wallet, wallet, id, ticket, hash, deps),

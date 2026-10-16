@@ -20,6 +20,23 @@ export const SIMPLE_7702_ABI = [
     ],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "executeBatch",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "calls",
+        type: "tuple[]",
+        components: [
+          { name: "target", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "data", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [],
+  },
 ] as const;
 
 export const ENTRY_POINT_ABI = [
@@ -105,6 +122,18 @@ export function encodeAccountExecute(call: { to: Address; value: bigint; data: H
   });
 }
 
+export function encodeAccountExecuteBatch(
+  calls: readonly { to: Address; value: bigint; data: Hex }[],
+): Hex {
+  if (calls.length < 2) throw new Error("Batch requires multiple calls");
+  if (calls.some((call) => call.value !== 0n)) throw new Error("Native value is not allowed");
+  return encodeFunctionData({
+    abi: SIMPLE_7702_ABI,
+    functionName: "executeBatch",
+    args: [calls.map((call) => ({ target: call.to, value: call.value, data: call.data }))],
+  });
+}
+
 export function userOperationTypedData(userOp: Omit<PackedUserOperation, "signature">, chainId = 10143) {
   return {
     domain: {
@@ -152,12 +181,23 @@ export function sponsoredCallFromHandleOps(input: Hex): SponsoredInnerCall | nul
     const [ops, beneficiary] = decoded.args;
     if (ops.length !== 1) return null;
     const inner = decodeFunctionData({ abi: SIMPLE_7702_ABI, data: ops[0].callData });
-    if (inner.functionName !== "execute") return null;
+    if (inner.functionName === "execute")
+      return {
+        sender: ops[0].sender,
+        to: inner.args[0],
+        value: inner.args[1],
+        data: inner.args[2],
+        beneficiary,
+      };
+    if (inner.functionName !== "executeBatch") return null;
+    const batch = inner.args[0];
+    if (!batch.length) return null;
+    const last = batch[batch.length - 1];
     return {
       sender: ops[0].sender,
-      to: inner.args[0],
-      value: inner.args[1],
-      data: inner.args[2],
+      to: last.target,
+      value: last.value,
+      data: last.data,
       beneficiary,
     };
   } catch {

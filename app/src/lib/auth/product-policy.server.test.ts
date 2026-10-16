@@ -26,6 +26,24 @@ it('only authorizes the explicit agent and supported role; image payments requir
  await assert.rejects(planProductAction({kind:'image',imageId:'x',paymentIntent:'forged'},wallet,reader),/ticket/);
  const calls=await planProductAction({kind:'agent',agent:other,role:1},wallet,reader);assert.equal(calls.length,1);assert.equal(calls[0].to,IDOLS100X_ADDRESS);
 });
+it('allowlists image unlock as exact LUSD approve plus tagged collection pay',async()=>{
+ const { encodeFunctionData, erc20Abi } = await import('viem');
+ const { IDOLS100X_FAN_ABI } = await import('../idols100x.ts');
+ const amount='1000000';
+ const approve=encodeFunctionData({abi:erc20Abi,functionName:'approve',args:[IDOLS100X_ADDRESS,1_000_000n]});
+ const pay=encodeFunctionData({abi:IDOLS100X_FAN_ABI,functionName:'pay',args:[7n,1_000_000n]});
+ const tagged=`${pay}${'ab'.repeat(32)}` as import('viem').Hex;
+ const imageReader:PolicyReader={...reader,image:async()=>({calls:[{to:LONELY_USD_ADDRESS,data:approve},{to:IDOLS100X_ADDRESS,data:tagged}],amount})};
+ const calls=await planProductAction({kind:'image',imageId:'x',paymentIntent:'quoted'},wallet,imageReader);
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].to,LONELY_USD_ADDRESS);
+ assert.equal(calls[1].to,IDOLS100X_ADDRESS);
+ assert.equal(calls[0].value,0n);
+ assert.equal(calls[1].value,0n);
+ assert.equal(calls[1].data,tagged);
+ await assert.rejects(planProductAction({kind:'image',imageId:'x',paymentIntent:'quoted'},wallet,{...imageReader,image:async()=>({calls:[{to:other,data:approve},{to:IDOLS100X_ADDRESS,data:tagged}],amount})}),/Invalid image payment/);
+ await assert.rejects(planProductAction({kind:'image',imageId:'x',paymentIntent:'quoted'},wallet,{...imageReader,image:async()=>({calls:[{to:LONELY_USD_ADDRESS,data:approve}],amount})}),/Invalid image payment/);
+});
 
 it('mint, buy, sale, pricing and tip stay in the APP collection policy with exact approvals', async()=>{
  const { IDOLS100X_IDOL_ABI, IDOLS100X_FAN_ABI } = await import('../idols100x.ts');
