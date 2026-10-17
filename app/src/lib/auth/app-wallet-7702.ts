@@ -102,9 +102,7 @@ export const PACKED_USER_OP_TYPES = {
 } as const;
 
 /** EIP-7702 delegation indicator for Simple7702Account. */
-export function appWalletDelegationCode(
-  implementation: Address = APP_ACCOUNT_IMPLEMENTATION,
-): Hex {
+export function appWalletDelegationCode(implementation: Address = APP_ACCOUNT_IMPLEMENTATION): Hex {
   return `0xef0100${implementation.slice(2)}`.toLowerCase() as Hex;
 }
 
@@ -134,7 +132,10 @@ export function encodeAccountExecuteBatch(
   });
 }
 
-export function userOperationTypedData(userOp: Omit<PackedUserOperation, "signature">, chainId = 10143) {
+export function userOperationTypedData(
+  userOp: Omit<PackedUserOperation, "signature">,
+  chainId = 10143,
+) {
   return {
     domain: {
       name: "ERC4337",
@@ -173,34 +174,33 @@ export type SponsoredInnerCall = {
   beneficiary: Address;
 };
 
-/** Decode a sponsor-submitted EntryPoint.handleOps that executes one Simple7702 call. */
-export function sponsoredCallFromHandleOps(input: Hex): SponsoredInnerCall | null {
+export type SponsoredExecution = {
+  sender: Address;
+  beneficiary: Address;
+  execution: "execute" | "executeBatch";
+  calls: { to: Address; value: bigint; data: Hex }[];
+};
+/** Decode all calls. Policy consumers must validate the entire ordered execution. */
+export function sponsoredCallsFromHandleOps(input: Hex): SponsoredExecution | null {
   try {
     const decoded = decodeFunctionData({ abi: ENTRY_POINT_ABI, data: input });
     if (decoded.functionName !== "handleOps") return null;
     const [ops, beneficiary] = decoded.args;
     if (ops.length !== 1) return null;
     const inner = decodeFunctionData({ abi: SIMPLE_7702_ABI, data: ops[0].callData });
-    if (inner.functionName === "execute")
-      return {
-        sender: ops[0].sender,
-        to: inner.args[0],
-        value: inner.args[1],
-        data: inner.args[2],
-        beneficiary,
-      };
-    if (inner.functionName !== "executeBatch") return null;
-    const batch = inner.args[0];
-    if (!batch.length) return null;
-    const last = batch[batch.length - 1];
-    return {
-      sender: ops[0].sender,
-      to: last.target,
-      value: last.value,
-      data: last.data,
-      beneficiary,
-    };
+    const calls =
+      inner.functionName === "execute"
+        ? [{ to: inner.args[0], value: inner.args[1], data: inner.args[2] }]
+        : inner.args[0].map((call) => ({ to: call.target, value: call.value, data: call.data }));
+    if (!calls.length) return null;
+    return { sender: ops[0].sender, beneficiary, execution: inner.functionName, calls };
   } catch {
     return null;
   }
+}
+/** Single-call consumers (e.g. text payments) must never silently accept a batch. */
+export function sponsoredCallFromHandleOps(input: Hex): SponsoredInnerCall | null {
+  const decoded = sponsoredCallsFromHandleOps(input);
+  if (!decoded || decoded.execution !== "execute" || decoded.calls.length !== 1) return null;
+  return { sender: decoded.sender, beneficiary: decoded.beneficiary, ...decoded.calls[0] };
 }

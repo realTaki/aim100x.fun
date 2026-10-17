@@ -10,6 +10,7 @@ import {
   encodeHandleOps,
   packUint128Pair,
   sponsoredCallFromHandleOps,
+  sponsoredCallsFromHandleOps,
   userOperationTypedData,
 } from "./app-wallet-7702.ts";
 
@@ -65,13 +66,16 @@ it("round-trips executeBatch and preserves extra inner calldata on the last call
     paymasterAndData: "0x" as Hex,
     signature: "0x" as Hex,
   };
-  const decoded = sponsoredCallFromHandleOps(encodeHandleOps([userOp], sponsor));
-  assert.deepEqual(decoded, {
+  const input = encodeHandleOps([userOp], sponsor);
+  assert.equal(sponsoredCallFromHandleOps(input), null, "single-call consumers reject batches");
+  assert.deepEqual(sponsoredCallsFromHandleOps(input), {
     sender,
-    to: sender,
-    value: 0n,
-    data: tagged,
     beneficiary: sponsor,
+    execution: "executeBatch",
+    calls: [
+      { to: target, value: 0n, data: "0x01" },
+      { to: sender, value: 0n, data: tagged },
+    ],
   });
   assert.throws(() => encodeAccountExecuteBatch([{ to: target, value: 0n, data: "0x" }]), /Batch/);
   assert.throws(
@@ -104,4 +108,26 @@ it("signs the EntryPoint v0.8 PackedUserOperation typed data with the APP wallet
     (await recoverTypedDataAddress({ ...typed, signature })).toLowerCase(),
     owner.address.toLowerCase(),
   );
+});
+it("rejects empty batches, malformed inputs and multiple operations instead of selecting a last call", async () => {
+  const { encodeFunctionData } = await import("viem");
+  const { SIMPLE_7702_ABI } = await import("./app-wallet-7702.ts");
+  const userOp = {
+    sender,
+    nonce: 0n,
+    initCode: "0x" as Hex,
+    callData: encodeFunctionData({
+      abi: SIMPLE_7702_ABI,
+      functionName: "executeBatch",
+      args: [[]],
+    }),
+    accountGasLimits: packUint128Pair(1n, 21000n),
+    preVerificationGas: 21000n,
+    gasFees: packUint128Pair(0n, 0n),
+    paymasterAndData: "0x" as Hex,
+    signature: "0x" as Hex,
+  };
+  assert.equal(sponsoredCallsFromHandleOps(encodeHandleOps([userOp], sponsor)), null);
+  assert.equal(sponsoredCallsFromHandleOps(encodeHandleOps([userOp, userOp], sponsor)), null);
+  assert.equal(sponsoredCallsFromHandleOps("0x1234"), null);
 });
