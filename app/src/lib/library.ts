@@ -4,19 +4,19 @@ import {
   filterAndRankBucketCandidates,
   libraryImageToMeta,
   sceneMetadataSearchText,
-} from "@/lib/notion-bucket-candidates";
+} from "@/lib/media-bucket-candidates";
 import { uid } from "@/lib/utils";
 import {
-  fetchNotionLibraryImages,
-  notionImagesConfigured,
+  fetchMediaLibrary,
+  mediaLibraryConfigured,
   publishIdolImage,
-  resolveNotionImageUrl,
-  resolveNotionThumbUrl,
-  type NotionLibraryImage,
-} from "@/lib/notion-images";
+  resolveMediaImageUrl,
+  resolveMediaThumbUrl,
+  type MediaImage,
+} from "@/lib/media-library";
 import type { ImageContentRating } from "@/lib/image-content-rating";
 import { mediaUrlForId } from "@/lib/idol-overlay";
-import { isNotionPageId, isThumbImage, normalizeMediaId } from "@/lib/media-app-id";
+import { isMediaId, isThumbImage, normalizeMediaId } from "@/lib/media-app-id";
 import {
   imageIdFromUrl,
   mergeLibraryImageRows,
@@ -33,17 +33,17 @@ async function loadIdolCatalog() {
   return (await import("@/lib/idol-catalog.server")).loadIdolCatalog();
 }
 
-/** Warm chain + Images Notion catalog cache. */
+/** Warm chain + R2/Neon catalog cache. */
 export async function ensureSeedLibrary() {
   await loadIdolCatalog();
 }
 
-function notionImageToRow(img: NotionLibraryImage, tokenId: number): ImageRow {
+function mediaImageToRow(img: MediaImage, tokenId: number): ImageRow {
   return {
-    id: normalizeMediaId(img.pageId),
+    id: normalizeMediaId(img.mediaId),
     tokenId,
     scene_id: img.scene || "profile",
-    url: mediaUrlForId(img.pageId),
+    url: mediaUrlForId(img.mediaId),
     prompt: img.prompt || "",
     tags: img.tags || img.scene || "",
     source: img.type === "generated" ? "generated" : "seed",
@@ -56,10 +56,10 @@ async function listLibraryRows(
   sceneIdFilter?: string,
   sceneQuery?: string,
 ): Promise<ImageRow[]> {
-  const library = notionImagesConfigured() ? await fetchNotionLibraryImages(tokenId) : [];
-  let notion = library
+  const library = mediaLibraryConfigured() ? await fetchMediaLibrary(tokenId) : [];
+  let rows = library
     .filter((img) => !isThumbImage(img) && !["face", "banner", "cover"].includes(img.type))
-    .map((img) => notionImageToRow(img, tokenId));
+    .map((img) => mediaImageToRow(img, tokenId));
   if (sceneIdFilter) {
     const ranked = filterAndRankBucketCandidates(
       library.map(libraryImageToMeta),
@@ -67,10 +67,10 @@ async function listLibraryRows(
       sceneIdFilter,
       sceneQuery ?? sceneIdFilter,
     );
-    const allowed = new Set(ranked.map((r) => r.pageId));
-    notion = notion.filter((row) => allowed.has(row.id));
+    const allowed = new Set(ranked.map((r) => r.mediaId));
+    rows = rows.filter((row) => allowed.has(row.id));
   }
-  return mergeLibraryImageRows({ notion, leftover: [] });
+  return mergeLibraryImageRows(rows);
 }
 
 export async function countSceneImages(tokenId: number, sceneId: string) {
@@ -156,18 +156,18 @@ export async function insertGeneratedImage(input: {
     type: "generated",
   });
   if (!published) return undefined;
-  return { id: published.pageId, url: mediaUrlForId(published.pageId) };
+  return { id: published.mediaId, url: mediaUrlForId(published.mediaId) };
 }
 
 export async function resolveMediaSource(id: string, size?: string) {
   const fromUrl = imageIdFromUrl(id);
   const raw = fromUrl && fromUrl !== id ? fromUrl : id;
-  if (!isNotionPageId(raw)) return null;
+  if (!isMediaId(raw)) return null;
   if (size === "thumb") {
-    const thumbUrl = await resolveNotionThumbUrl(raw);
+    const thumbUrl = await resolveMediaThumbUrl(raw);
     if (thumbUrl) return { kind: "redirect" as const, url: thumbUrl };
   }
-  const live = await resolveNotionImageUrl(raw);
+  const live = await resolveMediaImageUrl(raw);
   if (live) return { kind: "redirect" as const, url: live };
   return null;
 }

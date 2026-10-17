@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  dashedNotionPageId,
-  isNotionPageId,
+  dashedMediaId,
+  isMediaId,
   isThumbImage,
   normalizeMediaId,
   stripMediaSizeParam,
 } from "./media-app-id.ts";
 
-describe("media page ids", () => {
-  it("normalizes dashed Notion page ids for /api/media", () => {
-    assert.equal(isNotionPageId("3de440f9-f3b7-8157-b4aa-d1dcafcd5e78"), true);
-    assert.equal(isNotionPageId("3de440f9f3b78157b4aad1dcafcd5e78"), true);
-    assert.equal(isNotionPageId("seed:1:profile:cover"), false);
+describe("media ids", () => {
+  it("normalizes dashed media ids for /api/media", () => {
+    assert.equal(isMediaId("3de440f9-f3b7-8157-b4aa-d1dcafcd5e78"), true);
+    assert.equal(isMediaId("3de440f9f3b78157b4aad1dcafcd5e78"), true);
+    assert.equal(isMediaId("seed:1:profile:cover"), false);
     assert.equal(
       normalizeMediaId("3de440f9-f3b7-8157-b4aa-d1dcafcd5e78"),
       "3de440f9f3b78157b4aad1dcafcd5e78",
     );
     assert.equal(
-      dashedNotionPageId("3de440f9f3b78157b4aad1dcafcd5e78"),
+      dashedMediaId("3de440f9f3b78157b4aad1dcafcd5e78"),
       "3de440f9-f3b7-8157-b4aa-d1dcafcd5e78",
     );
   });

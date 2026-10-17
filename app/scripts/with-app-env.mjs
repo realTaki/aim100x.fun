@@ -106,15 +106,6 @@ export function isMainModule(moduleUrl) {
   }
 }
 
-function readLocalNotionToken(root) {
-  try {
-    const v = readFileSync(join(root, ".grok", "notion.local"), "utf8").trim();
-    return v || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function main(argv) {
   const [command, ...args] = argv;
   if (!command) {
@@ -130,13 +121,6 @@ function main(argv) {
     // Optional local file.
   }
   const env = applyPaymasterSigner(mergeAppEnv(readAppEnv(projectRoot()), process.env));
-  // Local sandbox only: never inject the token into `vite build` so it cannot
-  // be inlined into the published bundle.
-  const isViteBuild = command === "vite" && args[0] === "build";
-  if (!isViteBuild) {
-    const notion = readLocalNotionToken(projectRoot());
-    if (notion && !env.NOTION_TOKEN) env.NOTION_TOKEN = notion;
-  }
   const child = spawn(command, args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {

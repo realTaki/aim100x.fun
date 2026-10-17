@@ -2,19 +2,19 @@ import { overlayIdolConfigs } from "./idol-config.server";
 import type { Idol } from "@/lib/idols";
 import { applyIdolStats } from "./idol-stats";
 import { buildIdolsForMinted } from "@/lib/idol-catalog-build";
-import type { NotionSeedImage } from "@/lib/idol-overlay";
+import type { MediaSeedImage } from "@/lib/idol-overlay";
 import {
-  fetchNotionLibraryImages,
-  fetchNotionSeedImages,
-  notionImagesConfigured,
-} from "@/lib/notion-images";
+  fetchMediaLibrary,
+  fetchMediaSeedImages,
+  mediaLibraryConfigured,
+} from "@/lib/media-library";
 import { fetchMintedIdolTokens } from "@/lib/idols100x-chain.server";
 import { publicPlazaIdols, sortPlazaIdols, subscribedIdolsFromCatalog } from "@/lib/idol-amateur";
 import { IDOLS100X_ADDRESS } from "@/lib/idols100x";
 
 export type IdolCatalog = {
   idols: Idol[];
-  seedImages: NotionSeedImage[];
+  seedImages: MediaSeedImage[];
   minted: Awaited<ReturnType<typeof fetchMintedIdolTokens>>;
 };
 
@@ -25,19 +25,19 @@ function emptyCatalog(minted: Awaited<ReturnType<typeof fetchMintedIdolTokens>> 
   return { idols: [], seedImages: [], minted };
 }
 
-async function loadNotionSeedImages(): Promise<NotionSeedImage[]> {
-  if (!notionImagesConfigured()) return [];
+async function loadMediaSeedImages(): Promise<MediaSeedImage[]> {
+  if (!mediaLibraryConfigured()) return [];
   try {
-    return await fetchNotionSeedImages();
+    return await fetchMediaSeedImages();
   } catch {
     return [];
   }
 }
 
-async function loadNotionLibraryImages() {
-  if (!notionImagesConfigured()) return [];
+async function loadMediaLibraryImages() {
+  if (!mediaLibraryConfigured()) return [];
   try {
-    return await fetchNotionLibraryImages();
+    return await fetchMediaLibrary();
   } catch {
     return [];
   }
@@ -62,8 +62,8 @@ async function refreshCatalog(force = false): Promise<IdolCatalog> {
     cache = { at: Date.now(), value };
     return value;
   }
-  const libraryImages = await loadNotionLibraryImages();
-  const seedImages = await loadNotionSeedImages();
+  const libraryImages = await loadMediaLibraryImages();
+  const seedImages = await loadMediaSeedImages();
   const idols = buildIdolsForMinted(minted, seedImages, libraryImages);
   const value: IdolCatalog = {
     idols,

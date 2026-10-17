@@ -1,26 +1,26 @@
 import type { Idol } from "@/lib/idols";
 import { sceneId } from "@/lib/idol-fields";
-import { candidatePhotoUrlsForScene } from "@/lib/notion-bucket-candidates";
-import { profileImagesFromNotion } from "@/lib/notion-bucket";
+import { candidatePhotoUrlsForScene } from "@/lib/media-bucket-candidates";
+import { profileImagesFromLibrary } from "@/lib/media-bucket";
 import { buildMediaContentRatingMap } from "@/lib/idol-media-rating";
-import type { NotionSeedImage } from "@/lib/idol-overlay";
+import type { MediaSeedImage } from "@/lib/idol-overlay";
 import type { MintedIdolOnChain } from "@/lib/idols100x-chain.server";
-import type { NotionLibraryImage } from "@/lib/notion-images";
+import type { MediaImage } from "@/lib/media-library";
 
 export function buildIdolFromChainAndImages(
   token: MintedIdolOnChain,
-  images: NotionSeedImage[],
-  libraryImages: NotionLibraryImage[] = [],
+  images: MediaSeedImage[],
+  libraryImages: MediaImage[] = [],
 ): Idol {
   const visualSource = libraryImages.length > 0 ? libraryImages : images;
-  const visuals = profileImagesFromNotion(visualSource, token.tokenId);
+  const visuals = profileImagesFromLibrary(visualSource, token.tokenId);
   const scenePhotoUrls: Record<string, string[]> = {};
   const ratingSource =
     libraryImages.length > 0
       ? libraryImages
       : images.map((img) => ({
           tokenId: img.tokenId,
-          pageId: img.pageId,
+          mediaId: img.mediaId,
           contentRating: img.contentRating ?? "",
         }));
   const mediaContentRating = buildMediaContentRatingMap(token.tokenId, ratingSource);

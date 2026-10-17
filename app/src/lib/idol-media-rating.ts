@@ -1,17 +1,17 @@
 import type { ImageContentRating } from "@/lib/image-content-rating";
 import { mediaUrlForId } from "@/lib/idol-overlay";
 import type { Idol } from "@/lib/idols";
-import type { NotionLibraryImage } from "@/lib/notion-images";
+import type { MediaImage } from "@/lib/media-library";
 import type { ChatMsg } from "@/lib/thread";
 
 export function buildMediaContentRatingMap(
   tokenId: number,
-  images: Pick<NotionLibraryImage, "tokenId" | "pageId" | "contentRating">[],
+  images: Pick<MediaImage, "tokenId" | "mediaId" | "contentRating">[],
 ): Record<string, ImageContentRating> {
   const out: Record<string, ImageContentRating> = {};
   for (const img of images) {
     if (img.tokenId !== tokenId) continue;
-    const url = mediaUrlForId(img.pageId);
+    const url = mediaUrlForId(img.mediaId);
     out[url] = img.contentRating === "NSFW" ? "NSFW" : "SFW";
   }
   return out;

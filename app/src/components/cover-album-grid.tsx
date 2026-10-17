@@ -55,7 +55,7 @@ export function CoverAlbumGrid({
         if (onItemClick) {
           return (
             <button
-              key={item.pageId}
+              key={item.mediaId}
               type="button"
               onClick={onItemClick}
               className={cn(
@@ -73,7 +73,7 @@ export function CoverAlbumGrid({
         }
         return (
           <div
-            key={item.pageId}
+            key={item.mediaId}
             className="aspect-portrait overflow-hidden rounded-xl bg-surface-2 ring-1 ring-border/60 transition-transform duration-150 active:scale-[0.98]"
           >
             {cell}

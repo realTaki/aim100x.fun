@@ -21,6 +21,6 @@ Each minted token stores **named NFT fields**. Vercel `GET /api/metadata/{tokenI
 
 Seed files `1.json`–`4.json` plus `1.scenes.json`–`4.scenes.json` are for deploy only.
 
-## Notion image buckets (off-chain)
+## Media buckets (off-chain)
 
-**Bucket key = `{tokenId}/{sceneId}`**. Profile/plaza art uses scene id `profile`. Media URLs are `/api/media/{notionPageId}` (full) or `?size=thumb` (same page **Thumbnail** file). Slot matching uses Images `Type` (`face` / `banner` / `cover`). Crop-on-upload: avatar 1:1 1408, banner 16:9 1792×1008, cover 2:3 1152×1728.
+**Bucket key = `{tokenId}/{sceneId}`**. Profile/plaza art uses scene id `profile`. Media URLs are `/api/media/{mediaId}` (full) or `?size=thumb` (same row thumbnail). Slot matching uses `Type` (`face` / `banner` / `cover`). Crop-on-upload: avatar 1:1 1408, banner 16:9 1792×1008, cover 2:3 1152×1728.

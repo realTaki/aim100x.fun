@@ -1,8 +1,8 @@
 import type { ImageContentRating } from "@/lib/image-content-rating";
 import { isThumbImage, normalizeMediaId } from "./media-app-id.ts";
 
-export type NotionSeedImage = {
-  pageId: string;
+export type MediaSeedImage = {
+  mediaId: string;
   tokenId: number;
   scene: string;
   tags: string;
@@ -16,7 +16,7 @@ export function mediaUrlForId(id: string) {
 }
 
 export function matchSeedImage(
-  images: NotionSeedImage[],
+  images: MediaSeedImage[],
   tokenId: number,
   localPath: string,
 ) {

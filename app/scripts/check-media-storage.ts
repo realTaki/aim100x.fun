@@ -9,14 +9,14 @@ import {
 } from "../src/lib/auth/wallet-auth.server.ts";
 import {
   publishIdolImage,
-  fetchNotionLibraryImages,
-  replaceNotionPageImage,
+  fetchMediaLibrary,
+  replaceMediaImage,
   ensureAlbumThumbnail,
-  clearNotionPageThumbnail,
-  setNotionImageType,
-  archiveNotionImagePages,
-  resolveNotionMediaUrls,
-} from "../src/lib/notion-images.ts";
+  clearMediaThumbnail,
+  setMediaImageType,
+  archiveMediaImages,
+  resolveMediaUrls,
+} from "../src/lib/media-library.ts";
 import {
   requireAvailablePaymentImage,
   ImageUnavailableError,
@@ -53,9 +53,9 @@ try {
     type: "generated",
   });
   assert.ok(result);
-  id = result.pageId;
+  id = result.mediaId;
   await rememberKeys();
-  const [row] = (await fetchNotionLibraryImages(1)).filter((row) => row.pageId === id);
+  const [row] = (await fetchMediaLibrary(1)).filter((row) => row.mediaId === id);
   assert.equal(row.prompt, marker);
   assert.equal(row.hasThumbnail, true);
   assert.equal(row.imageUrl, undefined);
@@ -68,8 +68,8 @@ try {
   response = await handleMediaRequest(request("?size=thumb"), id);
   assert.equal(await response.text(), "thumb-test-image");
   assert.equal(
-    await replaceNotionPageImage({
-      pageId: id.replace(/-/g, ""),
+    await replaceMediaImage({
+      mediaId: id.replace(/-/g, ""),
       bytes: Buffer.from("replaced-image"),
       mime: "image/webp",
       filename: "ignored.webp",
@@ -80,12 +80,12 @@ try {
   response = await handleMediaRequest(request(), id);
   assert.equal(await response.text(), "replaced-image");
   assert.equal(response.headers.get("content-type"), "image/webp");
-  await clearNotionPageThumbnail(id);
-  await ensureAlbumThumbnail({ tokenId: 1, pageId: id, bytes: Buffer.from("replacement-thumb") });
+  await clearMediaThumbnail(id);
+  await ensureAlbumThumbnail({ tokenId: 1, mediaId: id, bytes: Buffer.from("replacement-thumb") });
   await rememberKeys();
-  await setNotionImageType(id, "photo");
+  await setMediaImageType(id, "photo");
   await sql`UPDATE aim_idol_media SET content_rating = 'NSFW' WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${id}`;
-  assert.equal((await resolveNotionMediaUrls(id)).chatPaywalled, true);
+  assert.equal((await resolveMediaUrls(id)).chatPaywalled, true);
   assert.equal((await handleMediaRequest(request("?size=thumb"), id)).status, 402);
   // Exercise the real cookie and media-ticket verification on this isolated fixture.
   // No wallet signing, chain transaction, account row or real payment is involved.
@@ -131,15 +131,15 @@ try {
   await assert.rejects(requireAvailablePaymentImage(id, 1), ImageUnavailableError);
   await putMediaObject(original.image_key, Buffer.from("replaced-image"), "image/webp");
   await requireAvailablePaymentImage(id, 1);
-  assert.equal(await archiveNotionImagePages([id]), 1);
+  assert.equal(await archiveMediaImages([id]), 1);
   await assert.rejects(requireAvailablePaymentImage(id, 1), ImageUnavailableError);
-  assert.deepEqual(await resolveNotionMediaUrls(id), {});
+  assert.deepEqual(await resolveMediaUrls(id), {});
   console.log(
     "Live Neon/R2 upload, metadata, original/thumbnail streaming, replacement, authorization and payment-availability/archive checks passed.",
   );
 } finally {
   await rememberKeys();
   if (id)
-    await sql`DELETE FROM aim_idol_media WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${id} AND source_notion_id IS NULL`;
+    await sql`DELETE FROM aim_idol_media WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${id}`;
   await Promise.all([...keys].map(deleteMediaObject));
 }

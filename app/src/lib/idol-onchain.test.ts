@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildIdolFromChainAndImages } from "./idol-onchain.ts";
 import type { FlexibleScene } from "./idols.ts";
-import type { NotionSeedImage } from "./idol-overlay.ts";
+import type { MediaSeedImage } from "./idol-overlay.ts";
 
 type ChainToken = {
   tokenId: number;
@@ -48,9 +48,9 @@ function token(partial: Partial<ChainToken> = {}): ChainToken {
 }
 
 describe("buildIdolFromChainAndImages", () => {
-  const images: NotionSeedImage[] = [
+  const images: MediaSeedImage[] = [
     {
-      pageId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      mediaId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       tokenId: 1,
       scene: "late-night",
       tags: "late-night",
@@ -58,7 +58,7 @@ describe("buildIdolFromChainAndImages", () => {
     },
   ];
 
-  it("merges named chain fields with notion bucket photos", () => {
+  it("merges named chain fields with media bucket photos", () => {
     const idol = buildIdolFromChainAndImages(token(), images);
     assert.equal(idol.name, "Natalie100x");
     assert.equal(idol.isPublic, false);
@@ -72,16 +72,16 @@ describe("buildIdolFromChainAndImages", () => {
   });
 
   it("cover album is every matching cover row, not a single hero", () => {
-    const profileImages: NotionSeedImage[] = [
+    const profileImages: MediaSeedImage[] = [
       {
-        pageId: "11111111111111111111111111111111",
+        mediaId: "11111111111111111111111111111111",
         tokenId: 1,
         scene: "profile",
         tags: "avatar",
         type: "face",
       },
       {
-        pageId: "22222222222222222222222222222222",
+        mediaId: "22222222222222222222222222222222",
         tokenId: 1,
         scene: "profile",
         tags: "cover",
@@ -89,7 +89,7 @@ describe("buildIdolFromChainAndImages", () => {
         lastEdited: "2026-09-18T01:00:00.000Z",
       },
       {
-        pageId: "33333333333333333333333333333333",
+        mediaId: "33333333333333333333333333333333",
         tokenId: 1,
         scene: "profile",
         tags: "cover",
@@ -97,7 +97,7 @@ describe("buildIdolFromChainAndImages", () => {
         lastEdited: "2026-09-18T02:00:00.000Z",
       },
       {
-        pageId: "44444444444444444444444444444444",
+        mediaId: "44444444444444444444444444444444",
         tokenId: 1,
         scene: "profile",
         tags: "banner",
@@ -120,7 +120,7 @@ describe("buildIdolFromChainAndImages", () => {
       token({ isPublic: true }),
       [
         {
-          pageId: "cccccccccccccccccccccccccccccccc",
+          mediaId: "cccccccccccccccccccccccccccccccc",
           tokenId: 1,
           scene: "late-night",
           tags: "late-night",
