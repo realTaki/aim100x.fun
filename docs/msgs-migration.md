@@ -36,7 +36,7 @@ npm run config:migrate -w app -- --apply
 npm run media:check -w app
 ```
 
-The config migration reads the existing Monad collection at one block. It never sends a transaction and never overwrites an existing config row. A new private R2 bucket starts empty; manager uploads and chat generation write media. Failed/ambiguous database commits retain uploaded objects for recovery. The live media check removes only its own isolated fixture. There is no silent fallback to public legacy prompts.
+The config migration reads the existing Monad collection at one block. It never sends a transaction and never overwrites an existing config row. In a fresh environment the new private R2 bucket starts empty, and manager uploads and chat generation write media; production media was already migrated to R2 (see the completed storage migration below). Failed/ambiguous database commits retain uploaded objects for recovery. The live media check removes only its own isolated fixture. There is no silent fallback to public legacy prompts.
 
 ## Retained wallet and chain boundaries
 
