@@ -22,5 +22,10 @@
     "format": "npm run format -w app",
     "contracts:build": "node app/scripts/forge.mjs build",
     "contracts:test": "node app/scripts/forge.mjs test"
+  },
+  "overrides": {
+    "ws@>=8.0.0 <8.21.0": "8.21.3",
+    "@walletconnect/ethereum-provider@2.21.1": "2.22.4",
+    "uuid": "^11.1.1"
   }
 }
