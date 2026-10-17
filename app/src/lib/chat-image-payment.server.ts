@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import {
   createPublicClient,
   decodeEventLog,
+  parseAbi,
   encodeFunctionData,
   erc20Abi,
   keccak256,
@@ -13,7 +14,7 @@ import {
 } from "viem";
 import { sessionSigningKey } from "./auth/app-wallet.server.ts";
 import { APP_ENTRY_POINT, testnetWalletChain } from "./auth/app-wallet-chain.ts";
-import { sponsoredCallFromHandleOps } from "./auth/app-wallet-7702.ts";
+import { sponsoredCallsFromHandleOps } from "./auth/app-wallet-7702.ts";
 import { sponsorAccount } from "./auth/testnet-gas.server.ts";
 import {
   IDOLS100X_ADDRESS,
@@ -144,6 +145,9 @@ function imagePaymentTransferred(
   });
   return transfers.length === 1;
 }
+const paidAbi = parseAbi([
+  "event Paid(address indexed payer, uint256 indexed tokenId, uint256 amount)",
+]);
 /** Confirm a sponsor-submitted 7702 handleOps whose inner call is this checkout's tagged pay(). */
 export async function settleImagePayment(
   userId: string,
@@ -168,13 +172,26 @@ export async function settleImagePayment(
     reader.getTransaction({ hash }),
     reader.getTransactionReceipt({ hash }),
   ]);
-  const inner = sponsoredCallFromHandleOps(tx.input);
-  const pay = imagePaymentCalls(p)[1];
+  const inner = sponsoredCallsFromHandleOps(tx.input);
+  const expected = imagePaymentCalls(p);
+  const expectedCalls = inner?.execution === "executeBatch" ? expected : [expected[1]];
+  const exactCalls =
+    inner?.calls.length === expectedCalls.length &&
+    inner.calls.every(
+      (call, index) =>
+        call.value === 0n &&
+        same(call.to, expectedCalls[index].to) &&
+        same(call.data, expectedCalls[index].data),
+    );
   if (
     receipt.status !== "success" ||
     !tx.blockNumber ||
     tx.blockNumber < BigInt(p.fromBlock) ||
-    (tx.chainId != null && tx.chainId !== IDOLS100X_CHAIN_ID) ||
+    tx.chainId !== IDOLS100X_CHAIN_ID ||
+    !same(tx.hash, hash) ||
+    !same(receipt.transactionHash, hash) ||
+    tx.blockNumber !== receipt.blockNumber ||
+    !same(tx.blockHash, receipt.blockHash) ||
     !same(tx.from, sponsor) ||
     !same(receipt.from, sponsor) ||
     !same(tx.to, APP_ENTRY_POINT) ||
@@ -183,12 +200,30 @@ export async function settleImagePayment(
     !inner ||
     !same(inner.sender, wallet) ||
     !same(inner.beneficiary, sponsor) ||
-    !same(inner.to, IDOLS100X_ADDRESS) ||
-    inner.value !== 0n ||
-    !same(inner.data, pay.data) ||
-    !imagePaymentTransferred(receipt.logs ?? [], wallet, p.amount)
+    !exactCalls
   )
     throw new Error("Payment does not match this photo checkout");
+  const paid = receipt.logs.filter((log) => {
+    if (!same(log.address, IDOLS100X_ADDRESS) || log.removed) return false;
+    try {
+      const event = decodeEventLog({
+        abi: paidAbi,
+        eventName: "Paid",
+        data: log.data,
+        topics: log.topics,
+      });
+      return (
+        same(event.args.payer, wallet) &&
+        event.args.tokenId === BigInt(p.tokenId) &&
+        event.args.amount === BigInt(p.amount)
+      );
+    } catch {
+      return false;
+    }
+  });
+  if (paid.length !== 1) throw new Error("Missing exact image Paid receipt");
+  if (!imagePaymentTransferred(receipt.logs ?? [], wallet, p.amount))
+    throw new Error("Missing exact image Transfer receipt");
   await available(p.imageId, p.tokenId);
   const access = await new SignJWT({ imageId: p.imageId, wallet: wallet.toLowerCase() })
     .setProtectedHeader({ alg: "HS256" })

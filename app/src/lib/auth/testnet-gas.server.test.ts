@@ -66,7 +66,7 @@ it("faucet, subscribe and chat sends use 7702 sponsor-submitted handleOps on cha
   assert.match(walletSrc, /getChainId\(\)\) !== 10143/);
   assert.match(chatSrc, /getChainId\(\)\) !== 10143/);
   assert.match(gasSrc, /MONAD_PRIORITY_FEE/);
-  assert.match(imageSrc, /sponsoredCallFromHandleOps/);
+  assert.match(imageSrc, /sponsoredCallsFromHandleOps/);
   assert.match(imageSrc, /APP_ENTRY_POINT/);
   assert.doesNotMatch(imageSrc, /tx\.from\.toLowerCase\(\) !== wallet/);
 });
