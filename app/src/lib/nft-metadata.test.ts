@@ -56,7 +56,7 @@ describe("absolutePublicMediaUrl", () => {
     );
   });
 
-  it("rejects expiring Notion file URLs", () => {
+  it("rejects expiring third-party file URLs", () => {
     assert.equal(
       absolutePublicMediaUrl(
         "https://prod-files-secure.s3.us-west-2.amazonaws.com/x?X-Amz-Expires=3600",
@@ -84,7 +84,7 @@ describe("buildErc721TokenMetadata", () => {
     assert.equal(persona, undefined);
     assert.equal(token?.value, 1);
     assert.equal(slug, undefined);
-    assert.equal(json.image.includes("notion") || json.image.includes("amazonaws"), false);
+    assert.equal(json.image.includes("amazonaws"), false);
   });
 
   it("includes optional website and twitter even when empty", () => {

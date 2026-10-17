@@ -21,7 +21,7 @@ function row(id: string, extra: Partial<ImageRow> = {}): ImageRow {
 }
 
 describe("imageIdFromUrl", () => {
-  it("reads /api/media page ids including encoded ids", () => {
+  it("reads /api/media ids including encoded ids", () => {
     assert.equal(imageIdFromUrl("/api/media/abc"), "abc");
     assert.equal(
       imageIdFromUrl("/api/media/3de440f9f3b78157b4aad1dcafcd5e78"),
@@ -36,32 +36,28 @@ describe("imageIdFromUrl", () => {
 });
 
 describe("mergeLibraryImageRows", () => {
-  it("prefers Notion over leftover DB rows with the same id", () => {
-    const merged = mergeLibraryImageRows({
-      notion: [row("seed:1:late-night:1.jpg", { prompt: "from-notion" })],
-      leftover: [row("seed:1:late-night:1.jpg", { prompt: "from-db" })],
-    });
+  it("keeps the first row when two share an id", () => {
+    const merged = mergeLibraryImageRows([
+      row("seed:1:late-night:1.jpg", { prompt: "from-library" }),
+      row("seed:1:late-night:1.jpg", { prompt: "from-db" }),
+    ]);
     assert.equal(merged.length, 1);
-    assert.equal(merged[0]?.prompt, "from-notion");
+    assert.equal(merged[0]?.prompt, "from-library");
   });
 
-  it("keeps leftover DB images that are not in Notion", () => {
-    const merged = mergeLibraryImageRows({
-      notion: [row("gen-notion", { source: "generated" })],
-      leftover: [row("old-blob", { source: "generated" })],
-    });
+  it("keeps distinct ids", () => {
+    const merged = mergeLibraryImageRows([
+      row("gen-a", { source: "generated" }),
+      row("old-blob", { source: "generated" }),
+    ]);
     assert.deepEqual(
       merged.map((r) => r.id),
-      ["gen-notion", "old-blob"],
+      ["gen-a", "old-blob"],
     );
   });
 
-  it("stays empty when Notion and leftover are empty", () => {
-    const merged = mergeLibraryImageRows({
-      notion: [],
-      leftover: [],
-    });
-    assert.deepEqual(merged, []);
+  it("stays empty when given no rows", () => {
+    assert.deepEqual(mergeLibraryImageRows([]), []);
   });
 });
 
@@ -86,7 +82,7 @@ describe("unusedChatImages", () => {
     );
   });
 
-  it("treats dashed and compact Notion ids as the same seen photo", () => {
+  it("treats dashed and compact media ids as the same seen photo", () => {
     const dashed = "3de440f9-f3b7-8157-b4aa-d1dcafcd5e78";
     const compact = "3de440f9f3b78157b4aad1dcafcd5e78";
     assert.deepEqual(

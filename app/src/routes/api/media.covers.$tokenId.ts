@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { coverAlbumItemsFromLibrary } from "@/lib/cover-album";
 import { loadIdolByTokenId } from "@/lib/idol-catalog.server";
-import { fetchNotionLibraryImages } from "@/lib/notion-images";
+import { fetchMediaLibrary } from "@/lib/media-library";
 import { NFT_METADATA_CORS_HEADERS } from "@/lib/nft-metadata";
 import { parseTokenIdParam } from "@/lib/token-id";
 
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/media/covers/$tokenId")({
             headers: { "Content-Type": "application/json", ...NFT_METADATA_CORS_HEADERS },
           });
         }
-        const images = await fetchNotionLibraryImages(idol.tokenId);
+        const images = await fetchMediaLibrary(idol.tokenId);
         return new Response(JSON.stringify({ items: coverAlbumItemsFromLibrary(images, idol.tokenId) }), {
           status: 200,
           headers: { "Content-Type": "application/json", ...NFT_METADATA_CORS_HEADERS },

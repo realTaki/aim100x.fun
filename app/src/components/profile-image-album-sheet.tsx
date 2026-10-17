@@ -4,7 +4,7 @@ import { ActionGlyphButton } from "@/components/action-glyph-button";
 import type { ProfileImageKind } from "@/lib/profile-album";
 import {
   albumAuthHeaders,
-  deleteAlbumPages,
+  deleteAlbumMedia,
   replaceCoverFromPool,
   uploadProfileSlot,
 } from "@/lib/profile-album-client";
@@ -16,7 +16,7 @@ import { LightEditSheet } from "@/components/light-edit-sheet";
 import { ImageCropSheet } from "@/components/image-crop-sheet";
 import { ProfilePoolPickerSheet } from "@/components/profile-pool-picker-sheet";
 
-type AlbumItem = { pageId: string; mediaUrl: string };
+type AlbumItem = { mediaId: string; mediaUrl: string };
 
 const LONG_PRESS_MS = 450;
 
@@ -39,7 +39,7 @@ export function ProfileImageAlbumSheet({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropMode, setCropMode] = useState<"upload" | "replace" | null>(null);
-  const [replacePageId, setReplacePageId] = useState<string | null>(null);
+  const [replaceMediaId, setReplaceMediaId] = useState<string | null>(null);
   const [galleryFor, setGalleryFor] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,26 +91,26 @@ export function ProfileImageAlbumSheet({
     }
   }
 
-  function onCellPointerDown(pageId: string) {
+  function onCellPointerDown(mediaId: string) {
     longPressRef.current = false;
     clearPressTimer();
     pressTimerRef.current = setTimeout(() => {
       longPressRef.current = true;
       setSelectMode(true);
-      setSelected((prev) => new Set(prev).add(pageId));
+      setSelected((prev) => new Set(prev).add(mediaId));
       pressTimerRef.current = null;
     }, LONG_PRESS_MS);
   }
 
-  function onCellPointerUp(pageId: string) {
+  function onCellPointerUp(mediaId: string) {
     const wasLong = longPressRef.current;
     clearPressTimer();
     if (selectMode) {
       if (!wasLong) {
         setSelected((prev) => {
           const next = new Set(prev);
-          if (next.has(pageId)) next.delete(pageId);
-          else next.add(pageId);
+          if (next.has(mediaId)) next.delete(mediaId);
+          else next.add(mediaId);
           return next;
         });
       }
@@ -118,10 +118,10 @@ export function ProfileImageAlbumSheet({
     }
     if (wasLong) return;
     if (kind === "cover") {
-      setGalleryFor(pageId);
+      setGalleryFor(mediaId);
       return;
     }
-    setReplacePageId(pageId);
+    setReplaceMediaId(mediaId);
     setCropMode("replace");
     uploadRef.current?.click();
   }
@@ -152,7 +152,7 @@ export function ProfileImageAlbumSheet({
               pendingLabel="Deleting…"
               onClick={() =>
                 void deleteAction.run(async () => {
-                  await deleteAlbumPages(tokenId, [...selected], kind);
+                  await deleteAlbumMedia(tokenId, [...selected], kind);
                   setSelected(new Set());
                   setSelectMode(false);
                   await loadAlbum();
@@ -173,7 +173,7 @@ export function ProfileImageAlbumSheet({
             aria-label="Upload"
             onClick={() => {
               setCropMode("upload");
-              setReplacePageId(null);
+              setReplaceMediaId(null);
               uploadRef.current?.click();
             }}
             className={cn(
@@ -189,18 +189,18 @@ export function ProfileImageAlbumSheet({
             </div>
           ) : (
             items.map((item) => {
-              const picked = selected.has(item.pageId);
+              const picked = selected.has(item.mediaId);
               return (
                 <button
-                  key={item.pageId}
+                  key={item.mediaId}
                   type="button"
                   className={cn(
                     "relative aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-border/60",
                     kind === "cover" && "aspect-portrait",
                     picked && "ring-2 ring-accent",
                   )}
-                  onPointerDown={() => onCellPointerDown(item.pageId)}
-                  onPointerUp={() => onCellPointerUp(item.pageId)}
+                  onPointerDown={() => onCellPointerDown(item.mediaId)}
+                  onPointerUp={() => onCellPointerUp(item.mediaId)}
                   onPointerLeave={clearPressTimer}
                   onPointerCancel={clearPressTimer}
                 >
@@ -243,7 +243,7 @@ export function ProfileImageAlbumSheet({
         }}
         onCropped={(result) => {
           const extra =
-            cropMode === "replace" && replacePageId ? { pageId: replacePageId } : undefined;
+            cropMode === "replace" && replaceMediaId ? { mediaId: replaceMediaId } : undefined;
           return postCropped(result, extra);
         }}
       />
@@ -258,7 +258,7 @@ export function ProfileImageAlbumSheet({
           onPick={(item) => {
             if (!galleryFor) return;
             void swapAction.run(async () => {
-              await replaceCoverFromPool(tokenId, galleryFor, item.pageId);
+              await replaceCoverFromPool(tokenId, galleryFor, item.mediaId);
               await loadAlbum();
               onChanged();
             });

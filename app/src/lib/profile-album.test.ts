@@ -10,7 +10,7 @@ import {
 
 describe("profileImageMatchesKind", () => {
   const base = {
-    pageId: "p1",
+    mediaId: "p1",
     scene: "profile",
     tags: "",
     type: "face",
@@ -36,14 +36,14 @@ describe("profileImageMatchesKind", () => {
   it("cover album is every Type=cover row for the token, including named scenes", () => {
     const a = {
       ...base,
-      pageId: "c1",
+      mediaId: "c1",
       type: "cover",
       tags: "cover",
       lastEdited: "2026-09-18T01:00:00.000Z",
     };
     const b = {
       ...base,
-      pageId: "c2",
+      mediaId: "c2",
       scene: "late-night",
       type: "cover",
       tags: "late-night",
@@ -51,26 +51,26 @@ describe("profileImageMatchesKind", () => {
     };
     const photo = {
       ...base,
-      pageId: "p2",
+      mediaId: "p2",
       scene: "late-night",
       type: "photo",
       tags: "late-night",
     };
     const junk = {
       ...base,
-      pageId: "t1",
+      mediaId: "t1",
       type: "photo",
       tags: "thumb",
     };
     const album = pickProfileAlbumImages([a, b, photo, junk], 1, "cover");
     assert.deepEqual(
-      album.map((row) => row.pageId),
+      album.map((row) => row.mediaId),
       ["c2", "c1"],
     );
     assert.equal(profileImageIsPool(photo), true);
     assert.equal(profileImageIsPool(a), false);
     assert.equal(profileImageIsPool(junk), false);
-    assert.equal(pickPoolImages([a, b, photo, junk], 1).map((r) => r.pageId).join(), "p2");
+    assert.equal(pickPoolImages([a, b, photo, junk], 1).map((r) => r.mediaId).join(), "p2");
   });
 
   it("fan strip prefers Type=banner, else first album cover", () => {
@@ -94,7 +94,7 @@ describe("profileImageMatchesKind", () => {
 
   it("unflagged pool images are not album rows", () => {
     const pool = {
-      pageId: "g1",
+      mediaId: "g1",
       scene: "late-night",
       tags: "late-night",
       type: "generated",

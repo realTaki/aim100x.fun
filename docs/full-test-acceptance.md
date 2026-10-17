@@ -25,8 +25,8 @@ not recreated as instructions for this project.
 
 The environment CLI tests previously ran the repository's wrapper directly,
 which attempts to load ignored local files. They now resolve the wrapper's root
-inside a temporary fixture and cannot load the developer's `.env.local` or
-`.grok/notion.local`. No credential value is needed for these tests.
+inside a temporary fixture and cannot load the developer's `.env.local`.
+No credential value is needed for these tests.
 
 ## Final verification
 

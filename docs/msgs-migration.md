@@ -28,24 +28,15 @@ Initialize the schemas:
 npm run storage:init -w app
 ```
 
-Inventory old contract content and Notion media without writing:
+Inventory old contract content without writing, then copy on-chain creative fields into Neon if the collection already has named data:
 
 ```sh
 npm run config:migrate -w app
-npm run media:migrate -w app
-```
-
-Review the inventory, then copy and verify:
-
-```sh
 npm run config:migrate -w app -- --apply
-npm run media:migrate -w app -- --apply
 npm run media:check -w app
 ```
 
-The config migration reads the existing Monad collection at one block. It never sends a transaction and never overwrites an existing config row. Media migration preserves original UUIDs, metadata, ordering, and SHA-256 checksums; it never modifies Notion or overwrites application edits. Failed/ambiguous database commits retain uploaded objects for recovery. Rerun to verify/resume. The live media check removes only its own isolated fixture.
-
-`NOTION_TOKEN` and `NOTION_IMAGES_DATABASE_ID` must be supplied explicitly for migration. There is no default source database; a missing or blank database ID fails before any Notion request. Runtime never reads/writes Notion. Initialize and migrate before deploying this storage switch; there is no silent fallback to public legacy prompts.
+The config migration reads the existing Monad collection at one block. It never sends a transaction and never overwrites an existing config row. A new private R2 bucket starts empty; manager uploads and chat generation write media. Failed/ambiguous database commits retain uploaded objects for recovery. The live media check removes only its own isolated fixture. There is no silent fallback to public legacy prompts.
 
 ## Retained wallet and chain boundaries
 
@@ -82,7 +73,7 @@ The two designated personal Notion IDs were removed from current migration defau
 
 Vercel's existing Neon resource now supplies 18 `AIM100X_` variables as Secrets in Production and Preview. The runtime prefers `AIM100X_DATABASE_URL`; old names are compatibility fallbacks. `WALLET_MASTER_SECRET` remains configured as a Production Secret.
 
-The task-environment `AIM100X_POSTGRES_HOST` still has a malformed value; it should contain only the pooled hostname from `AIM100X_DATABASE_URL`, without quotes, connection-string parts or another assignment. It is not read by this migration or runtime. `NOTION_IMAGES_DATABASE_ID` is not persistently configured; supply it explicitly for any later migration rerun.
+The task-environment `AIM100X_POSTGRES_HOST` still has a malformed value; it should contain only the pooled hostname from `AIM100X_DATABASE_URL`, without quotes, connection-string parts or another assignment. It is not read by this migration or runtime.
 
 The server-only `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` have been added to Vercel as Production/Preview Secrets with explicit user authorization. Production deployment `8281326` reached READY with these variables. Actual HTTPS verification on aim100x.fun passed for authorized original/thumbnail delivery, anonymous/invalid-session denial and public metadata. The isolated production fixture was removed; no source media or account data was changed.
 

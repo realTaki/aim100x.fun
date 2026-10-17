@@ -7,7 +7,7 @@ import { getBearerToken } from "@/lib/auth/client";
 import { useActionGlyph } from "@/lib/use-action-glyph";
 import { cn, thumbUrl } from "@/lib/utils";
 
-type PoolItem = { pageId: string; mediaUrl: string };
+type PoolItem = { mediaId: string; mediaUrl: string };
 
 /** Full-screen thumbnail album, WeChat camera-roll style. */
 export function ProfilePoolPickerSheet({
@@ -64,7 +64,7 @@ export function ProfilePoolPickerSheet({
   }
 
   function confirmMany() {
-    const picked = items.filter((item) => selected.has(item.pageId));
+    const picked = items.filter((item) => selected.has(item.mediaId));
     if (picked.length === 0) return;
     void addAction
       .run(async () => {
@@ -109,15 +109,15 @@ export function ProfilePoolPickerSheet({
         ) : (
           <div className="grid grid-cols-4 gap-px bg-border">
             {items.map((item) => {
-              const picked = selected.has(item.pageId);
+              const picked = selected.has(item.mediaId);
               return (
                 <button
-                  key={item.pageId}
+                  key={item.mediaId}
                   type="button"
                   className="relative aspect-square overflow-hidden bg-surface-2"
                   onClick={() => {
                     if (multiple) {
-                      toggle(item.pageId);
+                      toggle(item.mediaId);
                       return;
                     }
                     onPick?.(item);

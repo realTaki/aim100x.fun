@@ -1,4 +1,4 @@
-import { dashedNotionPageId, isNotionPageId } from "./media-app-id.ts";
+import { dashedMediaId, isMediaId } from "./media-app-id.ts";
 import { MEDIA_COLLECTION_SCOPE, mediaSql, mediaObjectExists } from "./media-storage.server.ts";
 
 export class ImageUnavailableError extends Error {
@@ -10,7 +10,7 @@ export class ImageUnavailableError extends Error {
 
 async function findImageKey(imageId: string, tokenId: number): Promise<string | undefined> {
   const [row] = await mediaSql()`SELECT image_key FROM aim_idol_media
-    WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${dashedNotionPageId(imageId)} AND token_id = ${tokenId} AND archived_at IS NULL`;
+    WHERE collection_scope = ${MEDIA_COLLECTION_SCOPE} AND id = ${dashedMediaId(imageId)} AND token_id = ${tokenId} AND archived_at IS NULL`;
   return row?.image_key;
 }
 
@@ -21,7 +21,7 @@ export async function requireAvailablePaymentImage(
   deps = { findImageKey, objectExists: mediaObjectExists },
 ): Promise<void> {
   try {
-    if (!isNotionPageId(imageId)) throw new ImageUnavailableError();
+    if (!isMediaId(imageId)) throw new ImageUnavailableError();
     const key = await deps.findImageKey(imageId, tokenId);
     if (!key || !(await deps.objectExists(key))) throw new ImageUnavailableError();
   } catch {

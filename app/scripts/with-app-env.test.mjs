@@ -21,7 +21,7 @@ const execFileAsync = (file, args, options = {}) =>
     env: { PATH: process.env.PATH, ...options.env },
   });
 // Exercise the actual wrapper source in a synthetic app, never the developer's
-// ignored .env.local or .grok/notion.local. The wrapper resolves its own root.
+// ignored .env.local. The wrapper resolves its own root.
 const cliRoot = makeWorkspace('{"VITE_AUTH_ENABLED":"false"}');
 mkdirSync(join(cliRoot, "scripts"));
 for (const file of ["with-app-env.mjs", "paymaster-signer.mjs"]) {

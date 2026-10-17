@@ -7,7 +7,7 @@ import { ProfilePoolPickerSheet } from "@/components/profile-pool-picker-sheet";
 import { fetchCoverAlbum, type CoverAlbumItem } from "@/lib/cover-album";
 import { isActionGlyphBusy } from "@/lib/action-glyph";
 import { useActionGlyph } from "@/lib/use-action-glyph";
-import { addCoversFromPool, deleteAlbumPages, uploadProfileSlot } from "@/lib/profile-album-client";
+import { addCoversFromPool, deleteAlbumMedia, uploadProfileSlot } from "@/lib/profile-album-client";
 import { cn } from "@/lib/utils";
 
 export function ManagerCoverAlbum({
@@ -45,16 +45,16 @@ export function ManagerCoverAlbum({
     onChanged();
   }
 
-  function onPhotoClick(pageId: string) {
+  function onPhotoClick(mediaId: string) {
     if (!selectMode) {
       setSelectMode(true);
-      setSelected(new Set([pageId]));
+      setSelected(new Set([mediaId]));
       return;
     }
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(pageId)) next.delete(pageId);
-      else next.add(pageId);
+      if (next.has(mediaId)) next.delete(mediaId);
+      else next.add(mediaId);
       return next;
     });
   }
@@ -80,7 +80,7 @@ export function ManagerCoverAlbum({
             pendingLabel="Deleting…"
             onClick={() =>
               void deleteAction.run(async () => {
-                await deleteAlbumPages(tokenId, [...selected], "cover");
+                await deleteAlbumMedia(tokenId, [...selected], "cover");
                 setSelected(new Set());
                 setSelectMode(false);
                 await refresh();
@@ -121,16 +121,16 @@ export function ManagerCoverAlbum({
           </button>
         </div>
         {items.map((item) => {
-          const picked = selected.has(item.pageId);
+          const picked = selected.has(item.mediaId);
           return (
             <button
-              key={item.pageId}
+              key={item.mediaId}
               type="button"
               className={cn(
                 "relative aspect-portrait overflow-hidden rounded-xl bg-surface-2 ring-1 ring-border/60",
                 picked && "ring-2 ring-accent",
               )}
-              onClick={() => onPhotoClick(item.pageId)}
+              onClick={() => onPhotoClick(item.mediaId)}
             >
               <GatedIdolImage
                 src={item.fullUrl}
@@ -176,7 +176,7 @@ export function ManagerCoverAlbum({
         onPickMany={async (picked) => {
           await addCoversFromPool(
             tokenId,
-            picked.map((p) => p.pageId),
+            picked.map((p) => p.mediaId),
           );
           await refresh();
         }}
