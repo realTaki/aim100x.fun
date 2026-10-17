@@ -1,4 +1,4 @@
-import { resolveNotionMediaUrls } from "./notion-images.ts";
+import { resolveMediaUrls } from "./media-library.ts";
 import { sessionUserFromRequest } from "./auth/wallet-auth-http.server.ts";
 import { verifyImageAccess } from "./chat-image-payment.server.ts";
 import { normalizeMediaId } from "./media-app-id.ts";
@@ -13,7 +13,7 @@ export async function handleMediaRequest(
   request: Request,
   id: string,
   deps = {
-    resolve: resolveNotionMediaUrls,
+    resolve: resolveMediaUrls,
     session: sessionUserFromRequest,
     fetch,
   },

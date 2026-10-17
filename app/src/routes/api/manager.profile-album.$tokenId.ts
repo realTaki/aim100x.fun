@@ -5,13 +5,13 @@ import { parseTokenIdParam } from "@/lib/token-id";
 import { mediaUrlForId } from "@/lib/idol-overlay";
 import { PROFILE_UPLOAD_MAX_BYTES, slotWritesThumbnail, typeWritesThumbnail } from "@/lib/image-aspect";
 import {
-  archiveNotionImagePages,
+  archiveMediaImages,
   ensureAlbumThumbnail,
   flagPoolRowAsCover,
-  fetchNotionLibraryImages,
-  replaceNotionPageImage,
+  fetchMediaLibrary,
+  replaceMediaImage,
   unflagCoverAlbumRows,
-} from "@/lib/notion-images";
+} from "@/lib/media-library";
 import { thumbUrl } from "@/lib/utils";
 import {
   pickPoolImages,
@@ -39,11 +39,11 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
           return json({ error: "kind must be avatar, cover, or banner" }, 400);
         }
 
-        const images = await fetchNotionLibraryImages(idol.tokenId);
+        const images = await fetchMediaLibrary(idol.tokenId);
         if (kind === "cover" && url.searchParams.get("gallery") === "1") {
           const items = pickPoolImages(images, idol.tokenId).map((img) => ({
-            pageId: img.pageId,
-            mediaUrl: thumbUrl(mediaUrlForId(img.pageId)),
+            mediaId: img.mediaId,
+            mediaUrl: thumbUrl(mediaUrlForId(img.mediaId)),
           }));
           return json({ items });
         }
@@ -55,14 +55,14 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
           for (const img of matched) {
             await ensureAlbumThumbnail({
               tokenId: img.tokenId,
-              pageId: img.pageId,
+              mediaId: img.mediaId,
               hasThumbnail: img.hasThumbnail,
             });
           }
         }
         const items = matched.map((img) => ({
-          pageId: img.pageId,
-          mediaUrl: img.thumbnailUrl || thumbUrl(mediaUrlForId(img.pageId)),
+          mediaId: img.mediaId,
+          mediaUrl: img.thumbnailUrl || thumbUrl(mediaUrlForId(img.mediaId)),
         }));
 
         return json({ items });
@@ -75,27 +75,27 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
         const auth = await managerWalletFromRequest(request, idol.tokenId);
         if ("error" in auth) return json({ error: auth.error }, auth.status);
 
-        let body: { pageIds?: string[]; kind?: string };
+        let body: { mediaIds?: string[]; kind?: string };
         try {
-          body = (await request.json()) as { pageIds?: string[]; kind?: string };
+          body = (await request.json()) as { mediaIds?: string[]; kind?: string };
         } catch {
           return json({ error: "Invalid JSON" }, 400);
         }
         if (body.kind !== "cover") return json({ error: "kind must be cover" }, 400);
-        const pageIds = Array.from(
+        const mediaIds = Array.from(
           new Set(
-            (Array.isArray(body.pageIds) ? body.pageIds : []).filter(
+            (Array.isArray(body.mediaIds) ? body.mediaIds : []).filter(
               (id): id is string => typeof id === "string" && id.length > 0,
             ),
           ),
         );
-        if (pageIds.length === 0) return json({ error: "pageIds required" }, 400);
+        if (mediaIds.length === 0) return json({ error: "mediaIds required" }, 400);
 
-        const library = await fetchNotionLibraryImages(idol.tokenId);
+        const library = await fetchMediaLibrary(idol.tokenId);
         const pool = pickPoolImages(library, idol.tokenId);
         let added = 0;
-        for (const id of pageIds) {
-          const row = pool.find((img) => img.pageId === id);
+        for (const id of mediaIds) {
+          const row = pool.find((img) => img.mediaId === id);
           if (!row) continue;
           if (await flagPoolRowAsCover(row)) added += 1;
         }
@@ -110,25 +110,25 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
         const auth = await managerWalletFromRequest(request, idol.tokenId);
         if ("error" in auth) return json({ error: auth.error }, auth.status);
 
-        let body: { pageIds?: string[]; kind?: string };
+        let body: { mediaIds?: string[]; kind?: string };
         try {
-          body = (await request.json()) as { pageIds?: string[]; kind?: string };
+          body = (await request.json()) as { mediaIds?: string[]; kind?: string };
         } catch {
           return json({ error: "Invalid JSON" }, 400);
         }
-        const pageIds = Array.isArray(body.pageIds)
-          ? body.pageIds.filter((id) => typeof id === "string" && id.length > 0)
+        const mediaIds = Array.isArray(body.mediaIds)
+          ? body.mediaIds.filter((id) => typeof id === "string" && id.length > 0)
           : [];
-        if (pageIds.length === 0) return json({ error: "pageIds required" }, 400);
+        if (mediaIds.length === 0) return json({ error: "mediaIds required" }, 400);
 
-        const library = await fetchNotionLibraryImages(idol.tokenId);
-        const allowed = library.filter((i) => pageIds.includes(i.pageId));
+        const library = await fetchMediaLibrary(idol.tokenId);
+        const allowed = library.filter((i) => mediaIds.includes(i.mediaId));
         if (body.kind === "cover") {
           const unflagged = await unflagCoverAlbumRows(allowed);
           if (unflagged > 0) await loadIdolCatalog(true);
           return json({ ok: true, archived: unflagged });
         }
-        const archived = await archiveNotionImagePages(allowed.map((i) => i.pageId));
+        const archived = await archiveMediaImages(allowed.map((i) => i.mediaId));
         if (archived > 0) await loadIdolCatalog(true);
         return json({ ok: true, archived });
       },
@@ -147,22 +147,22 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
           return json({ error: "Invalid form data" }, 400);
         }
 
-        const pageId = String(form.get("pageId") ?? "");
-        const fromPageId = String(form.get("fromPageId") ?? "");
-        if (!pageId) return json({ error: "pageId required" }, 400);
+        const mediaId = String(form.get("mediaId") ?? "");
+        const fromMediaId = String(form.get("fromMediaId") ?? "");
+        if (!mediaId) return json({ error: "mediaId required" }, 400);
 
-        const library = await fetchNotionLibraryImages(idol.tokenId);
-        const slot = library.find((i) => i.pageId === pageId);
+        const library = await fetchMediaLibrary(idol.tokenId);
+        const slot = library.find((i) => i.mediaId === mediaId);
         if (!slot) return json({ error: "Unknown image" }, 404);
 
-        if (fromPageId) {
-          const pool = library.find((i) => i.pageId === fromPageId);
+        if (fromMediaId) {
+          const pool = library.find((i) => i.mediaId === fromMediaId);
           if (!pool) return json({ error: "Unknown image" }, 404);
           const flagged = await flagPoolRowAsCover(pool);
           if (!flagged) return json({ error: "Flag failed" }, 502);
           await unflagCoverAlbumRows([slot]);
           await loadIdolCatalog(true);
-          return json({ ok: true, mediaUrl: mediaUrlForId(pool.pageId) });
+          return json({ ok: true, mediaUrl: mediaUrlForId(pool.mediaId) });
         }
 
         const file = form.get("file");
@@ -178,24 +178,24 @@ export const Route = createFileRoute("/api/manager/profile-album/$tokenId")({
           thumb instanceof File && thumb.size > 0
             ? Buffer.from(await thumb.arrayBuffer())
             : undefined;
-        const ok = await replaceNotionPageImage({
-          pageId,
+        const ok = await replaceMediaImage({
+          mediaId,
           bytes,
           mime: file.type || "image/jpeg",
-          filename: `${idol.tokenId}-profile-${pageId.slice(0, 8)}.jpg`,
+          filename: `${idol.tokenId}-profile-${mediaId.slice(0, 8)}.jpg`,
         });
         if (!ok) return json({ error: "Replace failed" }, 502);
         if (typeWritesThumbnail(slot.type)) {
           await ensureAlbumThumbnail({
             tokenId: slot.tokenId,
-            pageId: slot.pageId,
+            mediaId: slot.mediaId,
             bytes: thumbBytes ?? bytes,
             replaceExisting: true,
           });
         }
 
         await loadIdolCatalog(true);
-        return json({ ok: true, mediaUrl: mediaUrlForId(slot.pageId) });
+        return json({ ok: true, mediaUrl: mediaUrlForId(slot.mediaId) });
       },
     },
   },

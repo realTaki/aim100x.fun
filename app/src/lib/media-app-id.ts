@@ -1,4 +1,4 @@
-/** Cover-album and avatar thumbs are a Thumbnail file on the same page, not `{appId}.t`. */
+/** Cover-album and avatar thumbs are a thumbnail object on the same media row, not `{appId}.t`. */
 
 export function normalizeMediaId(id: string): string {
   const raw = id.trim();
@@ -7,17 +7,17 @@ export function normalizeMediaId(id: string): string {
   return raw;
 }
 
-export function isNotionPageId(id: string): boolean {
+export function isMediaId(id: string): boolean {
   return /^[0-9a-f]{32}$/i.test(id.trim().replace(/-/g, ""));
 }
 
-export function dashedNotionPageId(id: string): string {
+export function dashedMediaId(id: string): string {
   const compact = id.trim().replace(/-/g, "").toLowerCase();
   if (compact.length !== 32) return id.trim();
   return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
 }
 
-/** Leftover junk rows tagged `thumb` (old sibling pages). Product rows never use this tag. */
+/** Leftover junk rows tagged `thumb` (old sibling rows). Product rows never use this tag. */
 export function isThumbImage(img: { tags?: string }): boolean {
   return splitTagNames(img.tags ?? "").includes("thumb");
 }

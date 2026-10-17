@@ -5,8 +5,8 @@ pragma solidity ^0.8.24;
 /// @notice One OpenZeppelin ERC-721 token per LonelyFuns idol. Index is token id only.
 ///
 /// Named NFT fields live on-chain. Vercel `/api/metadata/{tokenId}` composes
-/// ERC-721 marketplace JSON from those fields. Images stay in Notion
-/// (token id → Images rows); do not persist image ids on-chain.
+/// ERC-721 marketplace JSON from those fields. Images stay in private R2
+/// (token id → media rows); do not persist image ids on-chain.
 ///
 /// Fan entry points:
 ///   subscribe(tokenId) — LonelyUSD to TBA + 登记 membership + subscriberCount + 累计收账

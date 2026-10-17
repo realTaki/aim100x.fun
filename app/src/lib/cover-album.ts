@@ -1,22 +1,22 @@
-import type { NotionLibraryImage } from "./notion-images.ts";
+import type { MediaImage } from "./media-library.ts";
 import { mediaUrlForId } from "./idol-overlay.ts";
 import { pickProfileAlbumImages } from "./profile-album.ts";
 
 export type CoverAlbumItem = {
-  pageId: string;
+  mediaId: string;
   thumbUrl: string;
   fullUrl: string;
 };
 
 /** One payload for the cover grid: thumbs to paint, stable full URLs to prefetch. */
 export function coverAlbumItemsFromLibrary(
-  images: NotionLibraryImage[],
+  images: MediaImage[],
   tokenId: number,
 ): CoverAlbumItem[] {
   return pickProfileAlbumImages(images, tokenId, "cover").map((img) => ({
-    pageId: img.pageId,
-    thumbUrl: img.thumbnailUrl || `${mediaUrlForId(img.pageId)}?size=thumb`,
-    fullUrl: mediaUrlForId(img.pageId),
+    mediaId: img.mediaId,
+    thumbUrl: img.thumbnailUrl || `${mediaUrlForId(img.mediaId)}?size=thumb`,
+    fullUrl: mediaUrlForId(img.mediaId),
   }));
 }
 

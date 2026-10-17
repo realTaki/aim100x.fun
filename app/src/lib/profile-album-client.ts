@@ -25,9 +25,9 @@ export async function uploadProfileSlot(
     for (const [k, v] of Object.entries(extra)) body.set(k, v);
   }
   const res = await fetch(
-    extra?.pageId ? `/api/manager/profile-album/${tokenId}` : `/api/manager/profile-image/${tokenId}`,
+    extra?.mediaId ? `/api/manager/profile-album/${tokenId}` : `/api/manager/profile-image/${tokenId}`,
     {
-      method: extra?.pageId ? "PATCH" : "POST",
+      method: extra?.mediaId ? "PATCH" : "POST",
       headers: albumAuthHeaders(),
       body,
     },
@@ -37,26 +37,26 @@ export async function uploadProfileSlot(
 
 export async function addCoversFromPool(
   tokenId: number,
-  pageIds: string[],
+  mediaIds: string[],
 ): Promise<void> {
-  const ids = pageIds.filter((id) => id.trim().length > 0);
+  const ids = mediaIds.filter((id) => id.trim().length > 0);
   if (ids.length === 0) return;
   const res = await fetch(`/api/manager/profile-album/${tokenId}`, {
     method: "POST",
     headers: { ...albumAuthHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ pageIds: ids, kind: "cover" }),
+    body: JSON.stringify({ mediaIds: ids, kind: "cover" }),
   });
   if (!res.ok) throw new Error(await readError(res, "Couldn't add"));
 }
 
 export async function replaceCoverFromPool(
   tokenId: number,
-  slotPageId: string,
-  fromPageId: string,
+  slotMediaId: string,
+  fromMediaId: string,
 ): Promise<void> {
   const body = new FormData();
-  body.set("pageId", slotPageId);
-  body.set("fromPageId", fromPageId);
+  body.set("mediaId", slotMediaId);
+  body.set("fromMediaId", fromMediaId);
   const res = await fetch(`/api/manager/profile-album/${tokenId}`, {
     method: "PATCH",
     headers: albumAuthHeaders(),
@@ -65,15 +65,15 @@ export async function replaceCoverFromPool(
   if (!res.ok) throw new Error(await readError(res, "Couldn't replace"));
 }
 
-export async function deleteAlbumPages(
+export async function deleteAlbumMedia(
   tokenId: number,
-  pageIds: string[],
+  mediaIds: string[],
   kind: ImageSlotKind,
 ): Promise<void> {
   const res = await fetch(`/api/manager/profile-album/${tokenId}`, {
     method: "DELETE",
     headers: { ...albumAuthHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ pageIds, kind }),
+    body: JSON.stringify({ mediaIds, kind }),
   });
   if (!res.ok) throw new Error(await readError(res, "Couldn't delete"));
 }

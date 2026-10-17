@@ -24,13 +24,10 @@ export function imageIdFromUrl(url: string): string | undefined {
   return raw ? normalizeMediaId(raw) : undefined;
 }
 
-export function mergeLibraryImageRows(input: {
-  notion: ImageRow[];
-  leftover: ImageRow[];
-}): ImageRow[] {
+export function mergeLibraryImageRows(rows: ImageRow[]): ImageRow[] {
   const seen = new Set<string>();
   const out: ImageRow[] = [];
-  for (const row of [...input.notion, ...input.leftover]) {
+  for (const row of rows) {
     const key = normalizeMediaId(row.id);
     if (seen.has(key)) continue;
     seen.add(key);

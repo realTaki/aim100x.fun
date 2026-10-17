@@ -1,15 +1,15 @@
-import type { NotionLibraryImage } from "@/lib/notion-images";
-import type { NotionSeedImage } from "@/lib/idol-overlay";
+import type { MediaImage } from "@/lib/media-library";
+import type { MediaSeedImage } from "@/lib/idol-overlay";
 import { isThumbImage } from "./media-app-id.ts";
 
 export type ProfileImageKind = "avatar" | "cover" | "banner";
 
 /** Profile scene id used when uploading avatar / banner / new album files. */
-export const NOTION_PROFILE_SCENE = "profile";
+export const PROFILE_SCENE = "profile";
 
 type ProfileImageRow = Pick<
-  NotionSeedImage | NotionLibraryImage,
-  "pageId" | "scene" | "tags" | "type"
+  MediaSeedImage | MediaImage,
+  "mediaId" | "scene" | "tags" | "type"
 > & { lastEdited?: string; hasThumbnail?: boolean };
 
 /** Album / avatar / banner matching is Token Id + Type. */
@@ -34,7 +34,7 @@ export function sortProfileAlbumRows<T extends ProfileImageRow>(rows: T[]): T[] 
     const ta = a.lastEdited ? Date.parse(a.lastEdited) : 0;
     const tb = b.lastEdited ? Date.parse(b.lastEdited) : 0;
     if (tb !== ta) return tb - ta;
-    return b.pageId.localeCompare(a.pageId);
+    return b.mediaId.localeCompare(a.mediaId);
   });
 }
 

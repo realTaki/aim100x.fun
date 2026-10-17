@@ -12,7 +12,7 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type FlexibleScene = { [key: string]: JsonValue };
 
-/** Named NFT fields + Notion images. Index is token id only. */
+/** Named NFT fields + R2/Neon images. Index is token id only. */
 export type Idol = {
   tokenId: number;
   /** Plaza / service visibility (公开). Not the 20 LUSD sale listing. */
