@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { managerWalletFromRequest } from "@/lib/auth/manager-auth.server";
 import { loadIdolByTokenId, loadIdolCatalog } from "@/lib/idol-catalog.server";
-import { publishIdolProfileImage } from "@/lib/notion-images";
+import { publishIdolProfileImage } from "@/lib/media-library";
 import { parseTokenIdParam } from "@/lib/token-id";
 import { PROFILE_UPLOAD_MAX_BYTES } from "@/lib/image-aspect";
 import { mediaUrlForId } from "@/lib/idol-overlay";
@@ -67,8 +67,8 @@ export const Route = createFileRoute("/api/manager/profile-image/$tokenId")({
 
         return json({
           ok: true,
-          pageId: published.pageId,
-          mediaUrl: mediaUrlForId(published.pageId),
+          mediaId: published.mediaId,
+          mediaUrl: mediaUrlForId(published.mediaId),
         });
       },
     },

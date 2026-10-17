@@ -16,7 +16,7 @@ The app uses Passkey ERC-4337 accounts for sign-in and on-chain actions.
 
 ## Token model
 
-Canonical identity is the ERC-721 **token id**. Display name is the named field `name` (mutable). There is no slug, `notionPageId`, or `idolMetadataJson` blob.
+Canonical identity is the ERC-721 **token id**. Display name is the named field `name` (mutable). There is no slug or `idolMetadataJson` blob.
 
 | On-chain field | Rule |
 | --- | --- |

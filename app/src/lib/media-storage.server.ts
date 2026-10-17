@@ -53,13 +53,10 @@ export async function initializeMediaSchema() {
     mime text NOT NULL,
     image_sha256 text NOT NULL,
     thumbnail_sha256 text,
-    source_notion_id uuid,
-    source_last_edited timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     archived_at timestamptz,
-    PRIMARY KEY(collection_scope,id),
-    UNIQUE(collection_scope,source_notion_id)
+    PRIMARY KEY(collection_scope,id)
   )`;
   await sql`CREATE INDEX IF NOT EXISTS aim_idol_media_token_scene ON aim_idol_media (collection_scope, token_id, scene) WHERE archived_at IS NULL`;
 }

@@ -1,11 +1,11 @@
-import { mediaUrlForId, type NotionSeedImage } from "@/lib/idol-overlay";
+import { mediaUrlForId, type MediaSeedImage } from "@/lib/idol-overlay";
 import { sceneFieldText, type FlexibleScene } from "@/lib/idol-fields";
-import { imagesInNotionBucket, notionImageBucketKey } from "@/lib/notion-bucket";
-import type { NotionLibraryImage } from "@/lib/notion-images";
+import { imagesInMediaBucket, mediaBucketKey } from "@/lib/media-bucket";
+import type { MediaImage } from "@/lib/media-library";
 import { isThumbImage } from "./media-app-id.ts";
 
-export type NotionImageMeta = {
-  pageId: string;
+export type MediaImageMeta = {
+  mediaId: string;
   tokenId: number;
   scene: string;
   tags: string;
@@ -33,7 +33,7 @@ function tokenize(text: string): string[] {
   return [...new Set([...words, ...grams])];
 }
 
-export function scoreImageAgainstQuery(meta: NotionImageMeta, query: string): number {
+export function scoreImageAgainstQuery(meta: MediaImageMeta, query: string): number {
   const hay = `${meta.tags} ${meta.prompt} ${meta.type}`.toLowerCase();
   let score = 0;
   for (const token of tokenize(query)) {
@@ -45,7 +45,7 @@ export function scoreImageAgainstQuery(meta: NotionImageMeta, query: string): nu
 }
 
 export function filterAndRankBucketCandidates<
-  T extends NotionImageMeta & { pageId: string },
+  T extends MediaImageMeta & { mediaId: string },
 >(images: T[], tokenId: number, sceneId: string, query: string): T[] {
   const bucket = images.filter(
     (img) =>
@@ -62,13 +62,13 @@ export function filterAndRankBucketCandidates<
   }
   return [...bucket]
     .map((img) => ({ img, score: scoreImageAgainstQuery(img, query) }))
-    .sort((a, b) => b.score - a.score || a.img.pageId.localeCompare(b.img.pageId))
+    .sort((a, b) => b.score - a.score || a.img.mediaId.localeCompare(b.img.mediaId))
     .map((row) => row.img);
 }
 
-export function seedImageToMeta(img: NotionSeedImage & { prompt?: string }): NotionImageMeta {
+export function seedImageToMeta(img: MediaSeedImage & { prompt?: string }): MediaImageMeta {
   return {
-    pageId: img.pageId,
+    mediaId: img.mediaId,
     tokenId: img.tokenId,
     scene: img.scene,
     tags: img.tags,
@@ -77,9 +77,9 @@ export function seedImageToMeta(img: NotionSeedImage & { prompt?: string }): Not
   };
 }
 
-export function libraryImageToMeta(img: NotionLibraryImage): NotionImageMeta {
+export function libraryImageToMeta(img: MediaImage): MediaImageMeta {
   return {
-    pageId: img.pageId,
+    mediaId: img.mediaId,
     tokenId: img.tokenId,
     scene: img.scene,
     tags: img.tags,
@@ -89,7 +89,7 @@ export function libraryImageToMeta(img: NotionLibraryImage): NotionImageMeta {
 }
 
 export function candidatePhotoUrlsForScene(
-  images: NotionSeedImage[],
+  images: MediaSeedImage[],
   tokenId: number,
   scene: FlexibleScene,
   limit = 24,
@@ -102,9 +102,9 @@ export function candidatePhotoUrlsForScene(
     sceneId,
     query,
   );
-  return ranked.slice(0, limit).map((i) => mediaUrlForId(i.pageId));
+  return ranked.slice(0, limit).map((i) => mediaUrlForId(i.mediaId));
 }
 
 export function describeBucketKey(tokenId: number, sceneId: string): string {
-  return notionImageBucketKey(tokenId, sceneId);
+  return mediaBucketKey(tokenId, sceneId);
 }

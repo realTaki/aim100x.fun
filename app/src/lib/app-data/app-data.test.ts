@@ -446,7 +446,7 @@ describe("classifyCallToolError", () => {
       classifyCallToolError({
         ok: false,
         data: null,
-        errorMessage: "connector_not_connected: Notion",
+        errorMessage: "connector_not_connected: Drive",
       })?.kind,
       "not_connected",
     );
@@ -464,11 +464,11 @@ describe("classifyCallToolError", () => {
     const state = classifyCallToolError({
       ok: false,
       data: null,
-      errorMessage: "scope_denied: tool notion-list-recent-pages not in grant scopes",
+      errorMessage: "scope_denied: tool drive-list-recent-files not in grant scopes",
     });
     assert.equal(state?.kind, "scope_denied");
     assert.match(state?.message ?? "", /tool outside its grant/);
-    assert.match(state?.detail ?? "", /notion-list-recent-pages/);
+    assert.match(state?.detail ?? "", /drive-list-recent-files/);
   });
 
   it("classifies access_denied", () => {
